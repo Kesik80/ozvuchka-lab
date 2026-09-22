@@ -105,6 +105,28 @@ audio{width:100%;margin-top:8px}
 .sheet .it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;padding:12px 8px;border-radius:10px;min-height:48px;font-size:16px}
 .sheet .it:active{background:var(--line)}
 .sheet .it.danger{color:var(--danger)}
+.sub{font-weight:700;font-size:14px;margin:18px 0 8px}
+.sub small{font-weight:400;color:var(--muted)}
+.mcards button{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+.mcards button b{display:block;font-weight:700}
+.mcards button small{color:var(--muted);font-size:13px}
+.mcards button.on{border:2px solid var(--ink);padding:9px 13px;background:color-mix(in srgb,var(--mark) 22%,var(--card))}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--ink);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:10px 4px;min-height:44px;font-weight:500}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.mood{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 12px;min-height:40px}
+.mood.on{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
+.chips.off .mood{opacity:.45}
+code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.sl{display:block;margin:12px 0}
+.sl b{color:var(--accent)}
+.sl small{color:var(--muted)}
+.sl input{display:block;width:100%;accent-color:var(--ink);margin-top:6px;min-height:30px}
+.ck{display:flex;gap:10px;align-items:flex-start;margin:12px 0}
+.ck input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--ink)}
+.ck small{color:var(--muted)}
+.btn.big{margin-top:10px}
 .vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:0}
 .vrow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
@@ -149,32 +171,54 @@ select.inp{appearance:auto}
   <!-- AUDIO -->
   <section class="tab" id="tab-audio">
     <div class="box" id="elBox">
-      <h2>Озвучить через ElevenLabs</h2>
-      <p class="hint">Каждая строка получит свой клип голосом своего говорящего. Уже озвученные строки не тратят знаки повторно, пока не изменишь текст или голос.</p>
+      <h2>Голоса ElevenLabs</h2>
+      <p class="hint">Каждый говорящий читает своим голосом. Сначала стандартные голоса, ниже твои.</p>
       <div id="elVoices"></div>
-      <div class="row" style="margin-top:10px">
+      <div class="sub">Модель</div>
+      <div class="mcards" id="elModels">
+        <button data-m="eleven_v3"><b>Eleven v3 — эмоции</b><small>настроение голоса, самая живая; дубли звучат по-разному</small></button>
+        <button data-m="eleven_multilingual_v2"><b>Multilingual v2 — качество</b><small>ровная и предсказуемая</small></button>
+        <button data-m="eleven_flash_v2_5"><b>Flash v2.5 — быстрее</b><small>вдвое дешевле за символ, звучит попроще</small></button>
+      </div>
+      <div class="sub">Характер <small>v3 понимает только три положения</small></div>
+      <div class="seg" id="elStab"><button data-v="0">Творчески</button><button data-v="0.5">Естественно</button><button data-v="1">Стабильно</button></div>
+      <div class="sub">Настроение <small id="moodHint">можно выбрать несколько или ни одного</small></div>
+      <div class="chips" id="elMood"></div>
+      <div class="hint" id="elMoodNow"></div>
+      <details class="more"><summary>Код для модели (для своих вариантов)</summary>
+        <p class="hint">Перед каждой фразой v3 получит: <code id="elCode">—</code></p>
+        <label class="f" for="elTags">Свои теги дополнительно</label>
+        <input class="inp" id="elTags" placeholder="[sighs] [slowly]">
+      </details>
+    </div>
+    <div class="box">
+      <h2>Как читать</h2>
+      <label class="sl">Похожесть на голос <b id="vSim"></b><input type="range" id="elSim" min="0" max="1" step="0.05"></label>
+      <label class="sl">Артистичность <b id="vSty"></b> <small>0–0.4 обычно достаточно</small><input type="range" id="elSty" min="0" max="1" step="0.05"></label>
+      <label class="sl">Скорость <b id="vSpd"></b><input type="range" id="elSpd" min="0.7" max="1.2" step="0.05"></label>
+      <label class="ck"><input type="checkbox" id="elDot"><span>Точка в конце фразы</span></label>
+      <label class="ck"><input type="checkbox" id="elSeedOn"><span>Одно зерно на весь урок <small>иначе v3 читает каждый дубль по-своему</small></span></label>
+      <div class="row" style="flex-wrap:nowrap"><input class="inp" id="elSeed" inputmode="numeric" aria-label="Зерно"><button class="btn" data-go="seedRoll" aria-label="Новое зерно">🎲</button></div>
+      <label class="f" for="elLang">Язык текста (для v3 и Flash)</label>
+      <select class="inp" id="elLang"><option value="de">Немецкий</option><option value="ru">Русский</option><option value="uk">Украинский</option><option value="en">Английский</option><option value="">Определить самой</option></select>
+    </div>
+    <div class="box">
+      <h2>Пробы — сравнить настройки</h2>
+      <select class="inp" id="prLine" aria-label="Строка для пробы"></select>
+      <button class="btn pri big" data-go="probe" style="margin-top:10px">▶ Сделать пробу</button>
+      <p class="hint">Каждая проба остаётся в списке со своими настройками: переключай модель и ползунки, слушай подряд. «↺» возвращает настройки пробы, «В строку» ставит пробу клипом этой строки.</p>
+      <div id="prList"></div>
+    </div>
+    <div class="box">
+      <h2>Озвучить урок</h2>
+      <p class="hint">Уже озвученные строки не тратят знаки повторно, пока не изменишь текст, голос или настройки.</p>
+      <div class="row">
         <button class="btn pri" data-go="ttsAll" id="ttsAllBtn">Озвучить все строки</button>
         <button class="btn" data-go="ttsRedo">Переозвучить всё</button>
       </div>
       <div class="hint" id="ttsProg"></div>
-      <details class="more"><summary>Модель, язык и темп</summary>
-        <label class="f" for="elModel">Модель</label>
-        <select class="inp" id="elModel">
-          <option value="eleven_multilingual_v2">Multilingual v2 — ровная, надёжная</option>
-          <option value="eleven_v3">v3 — самая живая, понимает [laughs], [whispers]</option>
-          <option value="eleven_flash_v2_5">Flash 2.5 — быстрая, вдвое дешевле</option>
-          <option value="eleven_turbo_v2_5">Turbo 2.5</option>
-        </select>
-        <label class="f" for="elLang">Язык текста (для v3 и Flash/Turbo)</label>
-        <select class="inp" id="elLang"><option value="de">Немецкий</option><option value="ru">Русский</option><option value="uk">Украинский</option><option value="en">Английский</option><option value="">Определить самой</option></select>
-        <label class="f" for="elStab">Манера</label>
-        <select class="inp" id="elStab"><option value="0">Выразительно</option><option value="0.5">Естественно</option><option value="1">Ровно, как диктор</option></select>
-        <label class="f" for="elSpeed">Темп речи</label>
-        <select class="inp" id="elSpeed"><option value="0.8">Медленно (0.8)</option><option value="0.9">Чуть медленнее (0.9)</option><option value="1">Обычно</option><option value="1.1">Чуть быстрее (1.1)</option></select>
-      </details>
       <div class="row" style="margin-top:12px">
         <button class="btn" data-go="design">Создать голос по описанию</button>
-        <button class="btn" data-go="library">Немецкие голоса</button>
         <button class="btn" data-go="checkKeys">Проверить ключи</button>
       </div>
       <div id="elKeys" class="hint"></div>
@@ -869,8 +913,23 @@ async function autoMark(){
 }
 
 /* ---------- ElevenLabs ---------- */
-const EL_DEF={model:'eleven_multilingual_v2',lang:'de',stability:0.5,similarity:0.75,style:0,speed:1,def:null};
-function elS(){S.el=Object.assign({},EL_DEF,S.el||{});return S.el;}
+const MODELS=['eleven_v3','eleven_multilingual_v2','eleven_flash_v2_5'];
+const MOODS=[
+  {k:'cheer',e:'😊',t:'Весело',c:'[cheerfully]'},{k:'warm',e:'🤗',t:'Тепло',c:'[warmly]'},{k:'friend',e:'🙂',t:'Дружелюбно',c:'[friendly]'},
+  {k:'calm',e:'😌',t:'Спокойно',c:'[calmly]'},{k:'excited',e:'🤩',t:'Восторженно',c:'[excited]'},{k:'play',e:'😜',t:'Игриво',c:'[playfully]'},
+  {k:'conf',e:'💪',t:'Уверенно',c:'[confidently]'},{k:'soft',e:'🪶',t:'Мягко',c:'[softly]'},{k:'whisper',e:'🤫',t:'Шёпотом',c:'[whispers]'},
+  {k:'curious',e:'🤔',t:'С интересом',c:'[curious]'}];
+const newSeed=()=>Math.floor(Math.random()*999999999);
+const EL_DEF={model:'eleven_v3',lang:'de',stability:1,similarity:0.8,style:0.4,speed:1,moods:[],tags:'',dot:false,seedOn:true,seed:null,def:null};
+function elS(){
+  if(!S.el||S.el.__v!==2){S.el=Object.assign({},EL_DEF,S.el||{},{__v:2});}
+  const e=S.el;
+  if(!MODELS.includes(e.model))e.model='eleven_multilingual_v2';
+  if(![0,0.5,1].includes(+e.stability))e.stability=+e.stability<0.25?0:+e.stability<0.75?0.5:1;
+  if(!Array.isArray(e.moods))e.moods=[];
+  if(e.seed==null)e.seed=newSeed();
+  return e;
+}
 let PASS=null;try{PASS=localStorage.getItem('ozv:pass');}catch(e){}
 async function api(body,asBlob){
   for(let t=0;t<2;t++){
@@ -905,15 +964,16 @@ function keyLine(k){
   const rs=k.reset?', обновится '+new Date(k.reset*1000).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}):'';
   return 'Ключ '+(k.i+1)+' '+k.tail+' ('+k.tier+'): осталось '+nf(left)+' из '+nf(k.limit)+rs;
 }
+const gSign=v=>{const g=(v.labels||{}).gender;return g==='female'?' · ж':g==='male'?' · м':'';};
 function voiceMeta(v){
   const L=v.labels||{};
-  return [L.gender==='female'?'жен.':L.gender==='male'?'муж.':'',L.age,L.accent,v.key!=null?'ключ '+(v.key+1):''].filter(Boolean).join(', ');
+  return [L.descriptive||L.description,L.accent,L.use_case,v.key!=null?'ключ '+(v.key+1):''].filter(Boolean).map(x=>String(x).replace(/_/g,' ')).join(' · ');
 }
 const pvA=new Audio();
-function playPreview(src,btn){
+function playPreview(src){
   if(!src)return;
   if(pvA.dataset.src===src&&!pvA.paused){pvA.pause();return;}
-  pvA.src=src;pvA.dataset.src=src;pvA.play().catch(e=>toast('Образец не играет: '+e.message));
+  pvA.src=src;pvA.dataset.src=src;pvA.play().catch(e=>toast('Не играет: '+e.message));
 }
 function panel(title,html){
   let res;const done=new Promise(r=>res=r);
@@ -925,55 +985,131 @@ function panel(title,html){
   sc.addEventListener('click',e=>{if(e.target===sc)close(null);});
   return {sh,close,done};
 }
-async function pickVoice(title){
+async function pickVoice(title,cur){
   const P=panel(title,'<p class="hint">Загружаю голоса…</p>');
   const draw=vs=>{
-    const mine=vs.filter(v=>v.key!=null);
-    const row=v=>{const i=vs.indexOf(v);return '<div class="vit"><button class="ib" data-pv="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+esc(v.name)+'<small>'+esc(voiceMeta(v))+'</small></div><button class="btn" data-pick="'+i+'">Выбрать</button></div>';};
-    P.sh.innerHTML=
-      (mine.length?'<div class="sec">Мои немецкие голоса</div>'+mine.map(row).join(''):'<p class="hint">Голосов пока нет. Добавь немецкий из библиотеки («Немецкие голоса») или создай по описанию.</p>')+
-      '<div class="row" style="margin-top:12px"><button class="btn" data-rl="1">Обновить список</button><button class="btn" data-none="1">Без голоса</button></div>';
+    const std=vs.filter(v=>v.key==null),mine=vs.filter(v=>v.key!=null);
+    const row=v=>{const i=vs.indexOf(v),on=cur&&cur.id===v.id;return '<div class="vit"><button class="ib" data-pv="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+(on?'<b>':'')+esc(v.name+gSign(v))+(on?' ✓</b>':'')+'<small>'+esc(voiceMeta(v))+'</small></div><button class="btn" data-pick="'+i+'">Выбрать</button></div>';};
+    const perKey={};mine.forEach(v=>{perKey[v.key]=(perKey[v.key]||0)+1;});
+    P.sh.innerHTML='<div class="sec">Стандартные — с моделями v3 и Multilingual читают по-немецки</div>'+(std.length?std.map(row).join(''):'<p class="hint">Список пуст.</p>')+
+      '<div class="sec">Мои голоса</div>'+(mine.length?mine.map(row).join(''):'<p class="hint">Своих пока нет — «Создать голос по описанию».</p>')+
+      '<p class="hint">Стандартных '+std.length+(Object.keys(perKey).length?' · своих: '+Object.keys(perKey).map(k=>'ключ '+(+k+1)+' — '+perKey[k]).join(', '):'')+'</p>'+
+      '<div class="row"><button class="btn" data-rl="1">↻ Обновить список</button><button class="btn" data-none="1">Без голоса</button></div>';
   };
   P.sh.addEventListener('click',async e=>{
     const t=e.target.closest('button');if(!t||!VOICES)return;
-    if(t.dataset.pv)playPreview(VOICES[+t.dataset.pv].preview,t);
-    if(t.dataset.pick){const v=VOICES[+t.dataset.pick];P.close({id:v.id,name:v.name,key:v.key});}
+    if(t.dataset.pv)playPreview(VOICES[+t.dataset.pv].preview);
+    if(t.dataset.pick){const v=VOICES[+t.dataset.pick];P.close({id:v.id,name:v.name+gSign(v),key:v.key});}
     if(t.dataset.none)P.close(false);
     if(t.dataset.rl){P.sh.innerHTML='<p class="hint">Загружаю голоса…</p>';try{draw(await loadVoices(true));}catch(err){P.sh.innerHTML='<p class="hint warn">'+esc(err.message)+'</p>';}}
   });
   loadVoices().then(draw).catch(err=>{P.sh.innerHTML='<p class="hint warn">Не удалось загрузить голоса: '+esc(err.message)+'</p>';});
   return P.done;
 }
-async function assignVoice(target){ // target: speaker object or 'def'
-  const name=target==='def'?'строк без говорящего':target.name;
-  const v=await pickVoice('Голос для: '+name);
+async function assignVoice(target){ // speaker object or 'def'
+  const isDef=target==='def';
+  const v=await pickVoice('Голос для: '+(isDef?'строк без говорящего':target.name),isDef?elS().def:target.voice);
   if(v===null)return;
-  if(target==='def')elS().def=v||null;else target.voice=v||null;
+  if(isDef)elS().def=v||null;else target.voice=v||null;
   renderEl();renderLines();save();
 }
 function voiceFor(l){const s=spk(l.spk);return (s&&s.voice)||elS().def||null;}
-function ttsSig(l){const v=voiceFor(l),e=elS();return v?[l.text.trim(),v.id,v.key,e.model,e.lang,e.stability,e.speed].join('|'):null;}
+function moodCode(e){const m=MOODS.filter(x=>e.moods.includes(x.k)).map(x=>x.c).join(' ');return (m+' '+(e.tags||'').trim()).trim();}
+function buildReq(l,v,e){
+  let text=l.text.trim();
+  if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
+  if(e.model==='eleven_v3'){const pre=moodCode(e);if(pre)text=pre+' '+text;}
+  const r={a:'tts',text,voice:v.id,key:v.key,model:e.model,lang:e.lang,stability:e.stability,similarity:e.similarity,style:e.style,speed:e.speed};
+  if(e.seedOn)r.seed=e.seed;
+  return r;
+}
+function ttsSig(l,e){const v=voiceFor(l);if(!v)return null;const r=buildReq(l,v,e||elS());delete r.a;return JSON.stringify(r);}
 function renderEl(){
   const e=elS();
-  $('elModel').value=e.model;$('elLang').value=e.lang;$('elStab').value=String(e.stability);$('elSpeed').value=String(e.speed);
   const used=new Set(S.lines.filter(l=>l.type!=='head'&&l.text.trim()).map(l=>l.spk||'-'));
   const rows=S.speakers.map(s=>'<div class="vrow" style="--c:'+esc(s.color)+'"><span class="dot"></span><b>'+esc(s.name)+'</b><button class="btn vbtn'+(s.voice?'':' none')+'" data-vs="'+s.id+'">'+esc(s.voice?s.voice.name:'выбрать голос')+' ▾</button></div>');
   if(used.has('-')||!S.speakers.length)rows.push('<div class="vrow"><span class="dot" style="--c:var(--line)"></span><b>Без говорящего</b><button class="btn vbtn'+(e.def?'':' none')+'" data-vs="-">'+esc(e.def?e.def.name:'выбрать голос')+' ▾</button></div>');
   $('elVoices').innerHTML=rows.join('');
+  $('elModels').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===e.model));
+  $('elStab').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+e.stability));
+  const v3=e.model==='eleven_v3';
+  $('elMood').innerHTML=MOODS.map(m=>'<button class="mood'+(e.moods.includes(m.k)?' on':'')+'" data-mood="'+m.k+'" aria-pressed="'+e.moods.includes(m.k)+'">'+m.e+' '+m.t+'</button>').join('');
+  $('elMood').classList.toggle('off',!v3);
+  $('moodHint').textContent=v3?'можно выбрать несколько или ни одного':'работает только в Eleven v3';
+  const sel=MOODS.filter(x=>e.moods.includes(x.k));
+  $('elMoodNow').textContent=sel.length?'Сейчас: '+sel.map(x=>x.e+' '+x.t).join(' + '):'Сейчас: без настроения';
+  $('elCode').textContent=moodCode(e)||'—';
+  if(document.activeElement!==$('elTags'))$('elTags').value=e.tags||'';
+  $('elSim').value=e.similarity;$('vSim').textContent=(+e.similarity).toFixed(2);
+  $('elSty').value=e.style;$('vSty').textContent=(+e.style).toFixed(2);
+  $('elSpd').value=e.speed;$('vSpd').textContent=(+e.speed).toFixed(2)+'×';
+  $('elDot').checked=!!e.dot;$('elSeedOn').checked=!!e.seedOn;
+  if(document.activeElement!==$('elSeed'))$('elSeed').value=e.seed;
+  $('elSeed').disabled=!e.seedOn;
+  $('elLang').value=e.lang;
+  const pl=$('prLine'),keep=pl.value;
+  const opts=S.lines.map((l,i)=>l.type!=='head'&&l.text.trim()?'<option value="'+i+'">'+esc((spk(l.spk)?spk(l.spk).name+': ':'')+l.text.trim().slice(0,60))+'</option>':'').join('');
+  pl.innerHTML=opts||'<option value="">Нет строк — добавь текст</option>';
+  if(keep&&pl.querySelector('option[value="'+keep+'"]'))pl.value=keep;
+  renderProbes();
 }
+function elChanged(){renderEl();save();}
 $('elVoices').addEventListener('click',e=>{const b=e.target.closest('[data-vs]');if(!b)return;assignVoice(b.dataset.vs==='-'?'def':spk(b.dataset.vs));});
-$('elModel').addEventListener('change',e=>{elS().model=e.target.value;save();renderLines();});
-$('elLang').addEventListener('change',e=>{elS().lang=e.target.value;save();renderLines();});
-$('elStab').addEventListener('change',e=>{elS().stability=+e.target.value;save();renderLines();});
-$('elSpeed').addEventListener('change',e=>{elS().speed=+e.target.value;save();renderLines();});
+$('elModels').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){elS().model=b.dataset.m;elChanged();}});
+$('elStab').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){elS().stability=+b.dataset.v;elChanged();}});
+$('elMood').addEventListener('click',e=>{const b=e.target.closest('[data-mood]');if(!b)return;const m=elS().moods,k=b.dataset.mood,i=m.indexOf(k);if(i<0)m.push(k);else m.splice(i,1);elChanged();});
+$('elTags').addEventListener('input',e=>{elS().tags=e.target.value;$('elCode').textContent=moodCode(elS())||'—';save();});
+[['elSim','similarity','vSim',''],['elSty','style','vSty',''],['elSpd','speed','vSpd','×']].forEach(([id,f,lab,suf])=>{
+  $(id).addEventListener('input',e=>{elS()[f]=+e.target.value;$(lab).textContent=(+e.target.value).toFixed(2)+suf;save();});
+});
+$('elDot').addEventListener('change',e=>{elS().dot=e.target.checked;save();});
+$('elSeedOn').addEventListener('change',e=>{elS().seedOn=e.target.checked;elChanged();});
+$('elSeed').addEventListener('input',e=>{const v=parseInt(e.target.value,10);if(isFinite(v)&&v>=0){elS().seed=Math.min(4294967295,v);save();}});
+$('elLang').addEventListener('change',e=>{elS().lang=e.target.value;save();});
 
 async function ttsLine(i){
   const l=S.lines[i],v=voiceFor(l),e=elS();
   if(!l.text.trim())throw new Error('пустая строка');
   if(!v){const s=spk(l.spk);throw new Error('не выбран голос для «'+(s?s.name:'без говорящего')+'» (вкладка «Аудио»)');}
-  const r=await api({a:'tts',text:l.text.trim(),voice:v.id,key:v.key,model:e.model,lang:e.lang,stability:e.stability,similarity:e.similarity,style:e.style,speed:e.speed},true);
-  l.clip=addBlob(r.blob);l.gen=ttsSig(l);
+  const r=await api(buildReq(l,v,e),true);
+  l.clip=addBlob(r.blob);l.gen=ttsSig(l,e);
 }
+/* probes */
+const PROBES=[];
+function setLabel(s){
+  const st={0:'Творчески',0.5:'Естественно',1:'Стабильно'}[s.stability];
+  const md=s.model==='eleven_v3'?MOODS.filter(x=>s.moods.includes(x.k)).map(x=>x.e).join('')+(s.tags?' '+s.tags:''):'';
+  return [{eleven_v3:'v3',eleven_multilingual_v2:'Multi v2',eleven_flash_v2_5:'Flash'}[s.model],st,md,(+s.similarity).toFixed(2)+'/'+(+s.style).toFixed(2)+'/'+(+s.speed).toFixed(2)+'×',s.seedOn?'зерно '+s.seed:''].filter(Boolean).join(' · ');
+}
+function renderProbes(){
+  $('prList').innerHTML=PROBES.map((p,n)=>'<div class="vit"><button class="ib" data-prp="'+n+'" aria-label="Послушать">▶</button><div class="nm">'+(PROBES.length-n)+'. '+esc(p.voice)+'<small>'+esc(setLabel(p.set))+'</small><small>'+esc(p.text.slice(0,50))+'</small></div><button class="ib" data-prr="'+n+'" aria-label="Вернуть настройки">↺</button><button class="btn" data-pru="'+n+'">В строку</button></div>').join('');
+}
+async function probe(){
+  const i=parseInt($('prLine').value,10);if(!isFinite(i)||!S.lines[i]){toast('Выбери строку для пробы.');return;}
+  const l=S.lines[i],v=voiceFor(l);
+  if(!v){toast('Сначала выбери голос для этого говорящего.');return;}
+  const e=elS(),set=JSON.parse(JSON.stringify(e));
+  const btn=document.querySelector('[data-go="probe"]');btn.disabled=true;btn.textContent='Озвучиваю…';
+  try{
+    const r=await api(buildReq(l,v,e),true);
+    PROBES.unshift({i,lineId:l.id,text:l.text.trim(),voice:v.name,blob:r.blob,url:URL.createObjectURL(r.blob),set});
+    if(PROBES.length>20){const x=PROBES.pop();URL.revokeObjectURL(x.url);}
+    renderProbes();playPreview(PROBES[0].url);
+  }catch(err){toast('Проба не удалась: '+err.message);}
+  btn.disabled=false;btn.textContent='▶ Сделать пробу';
+}
+$('prList').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.prp)playPreview(PROBES[+b.dataset.prp].url);
+  if(b.dataset.prr){const p=PROBES[+b.dataset.prr];const keepDef=elS().def;S.el=Object.assign({},p.set,{def:keepDef,__v:2});elChanged();toast('Настройки пробы возвращены');}
+  if(b.dataset.pru){
+    const p=PROBES[+b.dataset.pru];const i=S.lines.findIndex(l=>l.id===p.lineId);
+    if(i<0){toast('Этой строки уже нет.');return;}
+    const l=S.lines[i];
+    if(l.text.trim()!==p.text){toast('Текст строки изменился после пробы.');return;}
+    l.clip=addBlob(p.blob);l.gen=ttsSig(l,p.set);renderLines();renderAudio();save();toast('Проба стала клипом строки');
+  }
+});
 let ttsBusy=false,ttsStop=false;
 async function ttsAll(force){
   if(ttsBusy){ttsStop=true;$('ttsProg').textContent='Останавливаю после текущей строки…';return;}
@@ -984,10 +1120,10 @@ async function ttsAll(force){
   if(!need.length){toast(S.lines.length?'Все строки уже озвучены.':'Нет текста для озвучки.');return;}
   const miss=[...new Set(need.filter(i=>!voiceFor(S.lines[i])).map(i=>{const s=spk(S.lines[i].spk);return s?s.name:'без говорящего';}))];
   if(miss.length){toast('Выбери голос: '+miss.join(', '));return;}
-  const chars=need.reduce((a,i)=>a+S.lines[i].text.trim().length,0);
+  const chars=need.reduce((a,i)=>a+buildReq(S.lines[i],voiceFor(S.lines[i]),elS()).text.length,0);
   const k=await sheet('Озвучить строк: '+need.length+' (~'+nf(chars)+' знаков)?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
   if(k!=='go')return;
-  ttsBusy=true;ttsStop=false;$('ttsAllBtn').textContent='■ Стоп';
+  ttsBusy=true;ttsStop=false;$('ttsAllBtn').textContent='■ Стоп';$('ttsProg').classList.remove('warn');
   let done=0,err=null;
   for(const i of need){
     if(ttsStop)break;
@@ -1005,7 +1141,7 @@ async function chooseKey(title){
   let ks;try{ks=await loadKeys();}catch(e){toast('Ошибка: '+e.message);return null;}
   const ok=ks.filter(k=>k.ok);if(!ok.length){toast('Ни один ключ не работает.');return null;}
   if(ok.length===1)return ok[0].i;
-  const k=await sheet(title,ok.map(x=>({k:String(x.i),icon:'🔑',label:keyLine(x).replace(/^Ключ \d+ /,'Ключ '+(x.i+1)+' ')})));
+  const k=await sheet(title,ok.map(x=>({k:String(x.i),icon:'🔑',label:keyLine(x)})));
   return k==null?null:+k;
 }
 async function checkKeys(){
@@ -1054,42 +1190,6 @@ async function design(){
       catch(err){b.disabled=false;toast('Не сохранилось: '+err.message);}
     }
   });
-  await P.done;
-}
-async function library(){
-  const P=panel('Немецкие голоса из библиотеки ElevenLabs',
-    '<div class="row" style="flex-wrap:nowrap"><input class="inp" id="lbQ" placeholder="calm, Berlin, Erzähler…" enterkeyhint="search"><select class="inp" id="lbG" style="width:auto"><option value="">все</option><option value="female">жен.</option><option value="male">муж.</option></select></div>'+
-    '<div class="row" style="margin-top:8px"><button class="btn pri" id="lbGo">Найти</button></div>'+
-    '<p class="hint">Показываю только голоса, которые работают на бесплатном тарифе. Голос добавляется на аккаунт, а мест под свои голоса там немного.</p><div id="lbOut"></div>');
-  const q=s=>P.sh.querySelector(s);let list=[],page=0,next=0;
-  const run=async more=>{
-    page=more?next:0;
-    if(!more){q('#lbOut').innerHTML='<p class="hint">Ищу…</p>';list=[];}
-    try{
-      const j=await api({a:'library',q:q('#lbQ').value.trim(),gender:q('#lbG').value,page});
-      next=j.next||page+1;const start=list.length;list=list.concat(j.voices||[]);
-      const rows=(j.voices||[]).map((v,k)=>{const i=start+k;return '<div class="vit"><button class="ib" data-lp="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+esc(v.name)+'<small>'+esc([v.gender==='female'?'жен.':v.gender==='male'?'муж.':'',v.age,v.accent,v.use].filter(Boolean).join(', '))+'</small></div><button class="btn" data-la="'+i+'">Добавить</button></div>';}).join('');
-      const out=q('#lbOut');const old=out.querySelector('#lbMore');if(old)old.remove();
-      if(!more)out.innerHTML='';
-      out.insertAdjacentHTML('beforeend',rows||(more?'':'<p class="hint">Ничего не нашлось.</p>'));
-      if(j.more)out.insertAdjacentHTML('beforeend','<button class="btn" id="lbMore" style="margin-top:8px">Показать ещё</button>');
-    }catch(err){q('#lbOut').innerHTML='<p class="hint warn">Ошибка: '+esc(err.message)+'</p>';}
-  };
-  q('#lbQ').addEventListener('keydown',e=>{if(e.key==='Enter')run(false);});
-  P.sh.addEventListener('click',async e=>{
-    const b=e.target.closest('button');if(!b)return;
-    if(b.id==='lbGo')run(false);
-    if(b.id==='lbMore')run(true);
-    if(b.dataset.lp)playPreview(list[+b.dataset.lp].preview);
-    if(b.dataset.la){
-      const v=list[+b.dataset.la];
-      const key=await chooseKey('На какой аккаунт добавить «'+v.name+'»?');if(key==null)return;
-      b.disabled=true;
-      try{const j=await api({a:'add',key,owner:v.owner,voice:v.id,name:v.name});P.close();await afterNewVoice(j.voice);}
-      catch(err){b.disabled=false;toast('Не добавился: '+err.message);}
-    }
-  });
-  run(false);
   await P.done;
 }
 
@@ -1307,7 +1407,8 @@ const GO={
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
   preview,export:doExport,saveProject,
-  ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,library,checkKeys
+  ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,checkKeys,probe,
+  seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b&&GO[b.dataset.go]){e.preventDefault();GO[b.dataset.go]();}});
 let tab='text';

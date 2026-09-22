@@ -70,7 +70,7 @@ module.exports = async function handler(req, res) {
             });
           } catch (e) {}
         }));
-        out.sort((a, b2) => (a.key === null) - (b2.key === null) || a.name.localeCompare(b2.name));
+        out.sort((a, b2) => (a.key !== null) - (b2.key !== null) || a.name.localeCompare(b2.name));
         return send(res, 200, { voices: out });
       }
 
@@ -87,6 +87,8 @@ module.exports = async function handler(req, res) {
           speed: +b.speed > 0 ? +b.speed : 1,
         } };
         if (b.lang && /^(eleven_v3|eleven_flash_v2_5|eleven_turbo_v2_5)$/.test(model)) body.language_code = String(b.lang).slice(0, 5);
+        const seed = parseInt(b.seed, 10);
+        if (Number.isFinite(seed) && seed >= 0) body.seed = Math.min(4294967295, seed);
         // свой голос живёт только на своём аккаунте; стандартные — пробуем ключи по кругу
         let order;
         if (keyAt(b.key)) order = [b.key];
@@ -130,38 +132,6 @@ module.exports = async function handler(req, res) {
         if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
         const v = await r.json();
         return send(res, 200, { voice: { id: v.voice_id, name: v.name, key: K.indexOf(k) } });
-      }
-
-      case 'library': {
-        // только голоса, доступные на бесплатном тарифе; листаем, пока не наберём
-        const key = keyAt(b.key) || K[0];
-        let page = Number.isInteger(b.page) && b.page > 0 ? b.page : 0, more = true;
-        const out = [];
-        for (let n = 0; n < 4 && more && out.length < 15; n++, page++) {
-          const q = new URLSearchParams({ page_size: '50', language: String(b.lang || 'de'), page: String(page) });
-          if (b.q) q.set('search', String(b.q).slice(0, 80));
-          if (b.gender) q.set('gender', String(b.gender));
-          const r = await el(key, '/v1/shared-voices?' + q.toString());
-          if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
-          const j = await r.json();
-          more = !!j.has_more;
-          (j.voices || []).forEach(v => {
-            if (v.free_users_allowed === false) return;
-            out.push({ id: v.voice_id, owner: v.public_owner_id, name: v.name, gender: v.gender, age: v.age,
-              accent: v.accent, use: v.use_case, desc: (v.description || '').slice(0, 200), preview: v.preview_url || null });
-          });
-        }
-        return send(res, 200, { more, next: page, voices: out });
-      }
-
-      case 'add': {
-        const k = keyAt(b.key) || K[0];
-        if (!/^[A-Za-z0-9]+$/.test(String(b.owner || '')) || !/^[A-Za-z0-9]+$/.test(String(b.voice || '')))
-          return send(res, 400, { error: 'Неверный голос', code: 'voice' });
-        const r = await el(k, '/v1/voices/add/' + b.owner + '/' + b.voice, { method: 'POST', body: { new_name: String(b.name || 'Voice').slice(0, 60) } });
-        if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
-        const j = await r.json();
-        return send(res, 200, { voice: { id: j.voice_id, name: b.name, key: K.indexOf(k) } });
       }
 
       default:
