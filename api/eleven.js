@@ -133,18 +133,25 @@ module.exports = async function handler(req, res) {
       }
 
       case 'library': {
-        const q = new URLSearchParams({ page_size: '30', language: String(b.lang || 'de') });
-        if (b.q) q.set('search', String(b.q).slice(0, 80));
-        if (b.gender) q.set('gender', String(b.gender));
-        if (Number.isInteger(b.page) && b.page > 0) q.set('page', String(b.page));
-        const r = await el(keyAt(b.key) || K[0], '/v1/shared-voices?' + q.toString());
-        if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
-        const j = await r.json();
-        return send(res, 200, { more: !!j.has_more, voices: (j.voices || []).map(v => ({
-          id: v.voice_id, owner: v.public_owner_id, name: v.name, gender: v.gender, age: v.age, accent: v.accent,
-          use: v.use_case, desc: (v.description || '').slice(0, 200), preview: v.preview_url || null,
-          free: v.free_users_allowed !== false,
-        })) });
+        // только голоса, доступные на бесплатном тарифе; листаем, пока не наберём
+        const key = keyAt(b.key) || K[0];
+        let page = Number.isInteger(b.page) && b.page > 0 ? b.page : 0, more = true;
+        const out = [];
+        for (let n = 0; n < 4 && more && out.length < 15; n++, page++) {
+          const q = new URLSearchParams({ page_size: '50', language: String(b.lang || 'de'), page: String(page) });
+          if (b.q) q.set('search', String(b.q).slice(0, 80));
+          if (b.gender) q.set('gender', String(b.gender));
+          const r = await el(key, '/v1/shared-voices?' + q.toString());
+          if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
+          const j = await r.json();
+          more = !!j.has_more;
+          (j.voices || []).forEach(v => {
+            if (v.free_users_allowed === false) return;
+            out.push({ id: v.voice_id, owner: v.public_owner_id, name: v.name, gender: v.gender, age: v.age,
+              accent: v.accent, use: v.use_case, desc: (v.description || '').slice(0, 200), preview: v.preview_url || null });
+          });
+        }
+        return send(res, 200, { more, next: page, voices: out });
       }
 
       case 'add': {

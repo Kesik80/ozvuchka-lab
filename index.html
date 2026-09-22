@@ -928,11 +928,10 @@ function panel(title,html){
 async function pickVoice(title){
   const P=panel(title,'<p class="hint">Загружаю голоса…</p>');
   const draw=vs=>{
-    const mine=vs.filter(v=>v.key!=null),std=vs.filter(v=>v.key==null);
+    const mine=vs.filter(v=>v.key!=null);
     const row=v=>{const i=vs.indexOf(v);return '<div class="vit"><button class="ib" data-pv="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+esc(v.name)+'<small>'+esc(voiceMeta(v))+'</small></div><button class="btn" data-pick="'+i+'">Выбрать</button></div>';};
     P.sh.innerHTML=
-      (mine.length?'<div class="sec">Мои голоса (созданные и добавленные)</div>'+mine.map(row).join(''):'<p class="hint">Своих голосов пока нет — создай по описанию или добавь немецкий из библиотеки.</p>')+
-      '<div class="sec">Стандартные. Образцы на английском, но с моделью Multilingual/v3 они говорят по-немецки.</div>'+std.map(row).join('')+
+      (mine.length?'<div class="sec">Мои немецкие голоса</div>'+mine.map(row).join(''):'<p class="hint">Голосов пока нет. Добавь немецкий из библиотеки («Немецкие голоса») или создай по описанию.</p>')+
       '<div class="row" style="margin-top:12px"><button class="btn" data-rl="1">Обновить список</button><button class="btn" data-none="1">Без голоса</button></div>';
   };
   P.sh.addEventListener('click',async e=>{
@@ -1061,15 +1060,15 @@ async function library(){
   const P=panel('Немецкие голоса из библиотеки ElevenLabs',
     '<div class="row" style="flex-wrap:nowrap"><input class="inp" id="lbQ" placeholder="calm, Berlin, Erzähler…" enterkeyhint="search"><select class="inp" id="lbG" style="width:auto"><option value="">все</option><option value="female">жен.</option><option value="male">муж.</option></select></div>'+
     '<div class="row" style="margin-top:8px"><button class="btn pri" id="lbGo">Найти</button></div>'+
-    '<p class="hint">Голос нужно добавить на аккаунт — там ограничено число мест под свои голоса. Помеченные «платный» на бесплатном ключе не заговорят.</p><div id="lbOut"></div>');
-  const q=s=>P.sh.querySelector(s);let list=[],page=0;
+    '<p class="hint">Показываю только голоса, которые работают на бесплатном тарифе. Голос добавляется на аккаунт, а мест под свои голоса там немного.</p><div id="lbOut"></div>');
+  const q=s=>P.sh.querySelector(s);let list=[],page=0,next=0;
   const run=async more=>{
-    page=more?page+1:0;
+    page=more?next:0;
     if(!more){q('#lbOut').innerHTML='<p class="hint">Ищу…</p>';list=[];}
     try{
       const j=await api({a:'library',q:q('#lbQ').value.trim(),gender:q('#lbG').value,page});
-      const start=list.length;list=list.concat(j.voices||[]);
-      const rows=(j.voices||[]).map((v,k)=>{const i=start+k;return '<div class="vit"><button class="ib" data-lp="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+esc(v.name)+'<small>'+esc([v.gender==='female'?'жен.':v.gender==='male'?'муж.':'',v.age,v.accent,v.use].filter(Boolean).join(', '))+(v.free?'':' · <span class="warn">платный</span>')+'</small></div><button class="btn" data-la="'+i+'">Добавить</button></div>';}).join('');
+      next=j.next||page+1;const start=list.length;list=list.concat(j.voices||[]);
+      const rows=(j.voices||[]).map((v,k)=>{const i=start+k;return '<div class="vit"><button class="ib" data-lp="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+esc(v.name)+'<small>'+esc([v.gender==='female'?'жен.':v.gender==='male'?'муж.':'',v.age,v.accent,v.use].filter(Boolean).join(', '))+'</small></div><button class="btn" data-la="'+i+'">Добавить</button></div>';}).join('');
       const out=q('#lbOut');const old=out.querySelector('#lbMore');if(old)old.remove();
       if(!more)out.innerHTML='';
       out.insertAdjacentHTML('beforeend',rows||(more?'':'<p class="hint">Ничего не нашлось.</p>'));
