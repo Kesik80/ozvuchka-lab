@@ -4,8 +4,18 @@
 const BASE = 'https://api.elevenlabs.io';
 
 function keys() {
-  return String(process.env.ELEVENLABS_API_KEYS || process.env.ELEVENLABS_API_KEY || '')
-    .split(',').map(s => s.trim()).filter(Boolean);
+  // как в Uhrzeit: ELEVENLABS_API_KEY, _2 … _5 и/или ELEVENLABS_API_KEYS через запятую
+  const out = [];
+  const add = v => { const k = String(v || '').trim(); if (k && !out.includes(k)) out.push(k); };
+  add(process.env.ELEVENLABS_API_KEY);
+  for (let i = 2; i <= 5; i++) add(process.env['ELEVENLABS_API_KEY_' + i]);
+  String(process.env.ELEVENLABS_API_KEYS || '').split(',').forEach(add);
+  return out;
+}
+// кончились символы: 401/402 с quota_exceeded. 429 («слишком часто») аккаунт не меняет.
+function outOfCredits(status, text) {
+  const t = String(text || '').toLowerCase();
+  return (status === 401 || status === 402) && (t.includes('quota_exceeded') || t.includes('quota exceeded') || t.includes('credits'));
 }
 function tail(k) { return '…' + k.slice(-4); }
 
@@ -24,8 +34,6 @@ async function errOf(r) {
   const code = (d && (d.status || d.code)) || String(r.status);
   return { status: r.status, code, msg };
 }
-// ошибки, при которых имеет смысл попробовать следующий ключ
-const ROTATE = /quota|limit|exceeded|invalid_api_key|unusual_activity|too_many|free_users|detected_unusual|401|402|429/i;
 
 function send(res, status, obj) { res.status(status).json(obj); }
 
@@ -34,7 +42,7 @@ module.exports = async function handler(req, res) {
   const pass = process.env.OZV_PASSWORD;
   if (pass && req.headers['x-ozv-pass'] !== pass) return send(res, 401, { error: 'Нужен код доступа', code: 'need_pass' });
   const K = keys();
-  if (!K.length) return send(res, 500, { error: 'В Vercel не задан ELEVENLABS_API_KEYS', code: 'no_keys' });
+  if (!K.length) return send(res, 500, { error: 'В Vercel не задан ELEVENLABS_API_KEY (или ELEVENLABS_API_KEYS)', code: 'no_keys' });
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
   b = b || {};
@@ -43,59 +51,63 @@ module.exports = async function handler(req, res) {
   try {
     switch (b.a) {
       case 'keys': {
-        const out = await Promise.all(K.map(async (k, i) => {
+        const acc = await Promise.all(K.map(async (k, i) => {
           try {
             const r = await el(k, '/v1/user/subscription');
-            if (!r.ok) { const e = await errOf(r); return { i, tail: tail(k), ok: false, error: e.msg }; }
-            const s = await r.json();
-            return { i, tail: tail(k), ok: true, tier: s.tier, used: s.character_count, limit: s.character_limit, reset: s.next_character_count_reset_unix || null };
+            if (!r.ok) {
+              const e = await errOf(r);
+              return { i, tail: tail(k), ok: false, error: e.msg, noPermission: e.code === 'missing_permissions' };
+            }
+            const d = await r.json();
+            const used = d.character_count || 0, limit = d.character_limit || 0;
+            return { i, tail: tail(k), ok: true, tier: d.tier || '—', used, limit, left: Math.max(0, limit - used),
+              percent: limit ? Math.round(used / limit * 100) : 0, reset: d.next_character_count_reset_unix || null };
           } catch (e) { return { i, tail: tail(k), ok: false, error: e.message }; }
         }));
-        return send(res, 200, { keys: out });
+        const good = acc.filter(a => a.ok);
+        const left = good.reduce((n, a) => n + a.left, 0), limit = good.reduce((n, a) => n + a.limit, 0);
+        const best = good.slice().sort((a, b2) => b2.left - a.left)[0];
+        return send(res, 200, { keys: acc, left, limit, percent: limit ? Math.round((limit - left) / limit * 100) : 0, best: best ? best.i : 0 });
       }
 
       case 'voices': {
-        const seen = new Set(); const out = [];
-        await Promise.all(K.map(async (k, i) => {
-          try {
-            const r = await el(k, '/v1/voices');
-            if (!r.ok) return;
-            const j = await r.json();
-            (j.voices || []).forEach(v => {
-              const premade = v.category === 'premade';
-              const id = premade ? v.voice_id : v.voice_id + '@' + i;
-              if (seen.has(id)) return; seen.add(id);
-              out.push({ id: v.voice_id, name: v.name, cat: v.category, key: premade ? null : i,
-                labels: v.labels || {}, preview: v.preview_url || null, desc: v.description || '' });
-            });
-          } catch (e) {}
-        }));
-        out.sort((a, b2) => (a.key !== null) - (b2.key !== null) || a.name.localeCompare(b2.name));
-        return send(res, 200, { voices: out });
+        // голоса одного аккаунта: стандартные + свои. У каждого аккаунта свой набор своих голосов.
+        const i = Number.isInteger(b.key) && K[b.key] ? b.key : 0;
+        const r = await el(K[i], '/v1/voices');
+        if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg + ' (нужно право Voices → Read у ключа)', code: e.code }); }
+        const j = await r.json();
+        const voices = (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, cat: v.category || 'premade',
+          labels: v.labels || {}, preview: v.preview_url || null, desc: v.description || '' }));
+        return send(res, 200, { voices, key: i });
       }
 
       case 'tts': {
         const text = String(b.text || '').slice(0, 5000);
         if (!text.trim()) return send(res, 400, { error: 'Пустой текст', code: 'empty' });
-        if (!/^[A-Za-z0-9]{8,40}$/.test(String(b.voice || ''))) return send(res, 400, { error: 'Неверный голос', code: 'voice' });
-        const model = String(b.model || 'eleven_multilingual_v2');
-        const body = { text, model_id: model, voice_settings: {
-          stability: +b.stability >= 0 ? +b.stability : 0.5,
-          similarity_boost: +b.similarity >= 0 ? +b.similarity : 0.75,
-          style: +b.style >= 0 ? +b.style : 0,
-          use_speaker_boost: true,
-          speed: +b.speed > 0 ? +b.speed : 1,
-        } };
-        if (b.lang && /^(eleven_v3|eleven_flash_v2_5|eleven_turbo_v2_5)$/.test(model)) body.language_code = String(b.lang).slice(0, 5);
+        if (!/^[A-Za-z0-9]{15,40}$/.test(String(b.voice || ''))) return send(res, 400, { error: 'Неверный голос', code: 'voice' });
+        const MODELS = ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5'];
+        const model = MODELS.includes(b.model) ? b.model : 'eleven_multilingual_v2';
+        const v3 = model === 'eleven_v3';
+        const num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+        let stability = num(b.stability, 0, 1, 0.5);
+        if (v3) stability = stability < 0.25 ? 0 : stability > 0.75 ? 1 : 0.5;   // v3: только 0 / 0.5 / 1
+        const vs = { stability, similarity_boost: num(b.similarity, 0, 1, 0.75), style: num(b.style, 0, 1, 0), use_speaker_boost: true };
+        const speed = num(b.speed, 0.7, 1.2, 1);
+        if (speed !== 1) vs.speed = speed;
+        const body = { text, model_id: model, voice_settings: vs };
+        if (b.lang && (v3 || model === 'eleven_flash_v2_5')) body.language_code = String(b.lang).slice(0, 5);
         const seed = parseInt(b.seed, 10);
         if (Number.isFinite(seed) && seed >= 0) body.seed = Math.min(4294967295, seed);
-        // свой голос живёт только на своём аккаунте; стандартные — пробуем ключи по кругу
-        let order;
-        if (keyAt(b.key)) order = [b.key];
-        else { const s = Math.floor(Math.random() * K.length); order = K.map((_, i) => (i + s) % K.length); }
+        if (!v3) {   // невидимый контекст интонации — у v3 не поддерживается
+          if (b.prev) body.previous_text = String(b.prev).slice(0, 400);
+          if (b.next) body.next_text = String(b.next).slice(0, 400);
+        }
+        // начинаем с выбранного аккаунта; свой голос живёт только на своём — его не перекидываем
+        const start = keyAt(b.key) ? b.key : 0;
+        const order = b.pin ? [start] : K.map((_, n) => (start + n) % K.length);
         let last = null;
         for (const i of order) {
-          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + '?output_format=mp3_44100_128', { method: 'POST', body });
+          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + '?output_format=mp3_44100_64', { method: 'POST', body });
           if (r.ok) {
             const buf = Buffer.from(await r.arrayBuffer());
             res.setHeader('Content-Type', 'audio/mpeg');
@@ -103,10 +115,15 @@ module.exports = async function handler(req, res) {
             res.setHeader('Cache-Control', 'no-store');
             return res.status(200).send(buf);
           }
-          last = await errOf(r);
-          if (!ROTATE.test(last.code + ' ' + last.status)) break;
+          const txt = (await r.text()).slice(0, 400);
+          if (r.status === 402 || /paid_plan_required/.test(txt))
+            return send(res, 402, { error: 'Этот голос доступен только на платном плане ElevenLabs', code: 'paid_voice', key: i });
+          if (outOfCredits(r.status, txt) && order.length > 1) { last = { error: 'У аккаунта ' + (i + 1) + ' кончились символы', code: 'quota_exceeded' }; continue; }
+          let msg = 'ElevenLabs ' + r.status, code = String(r.status);
+          try { const d = JSON.parse(txt).detail; if (d) { msg = d.message || msg; code = d.status || d.code || code; } } catch (e) {}
+          return send(res, 502, { error: msg, code, key: i });
         }
-        return send(res, 502, { error: last ? last.msg : 'Нет ответа', code: last ? last.code : 'fail' });
+        return send(res, 502, Object.assign({ error: 'Символы кончились на всех аккаунтах', code: 'quota_exceeded' }, last || {}));
       }
 
       case 'design': {

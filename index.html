@@ -127,6 +127,28 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 .ck input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--ink)}
 .ck small{color:var(--muted)}
 .btn.big{margin-top:10px}
+.qbar{position:relative;height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:10px 0 6px}
+.qbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ok)}
+.qbar i.warn{background:#E67700}.qbar i.crit{background:var(--danger)}
+.qbar s{position:absolute;top:0;bottom:0;display:none;background:repeating-linear-gradient(45deg,var(--mark) 0 4px,transparent 4px 8px)}
+.qnums{font-size:13px;color:var(--muted);line-height:1.5}
+.acc{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;width:100%;background:transparent;text-align:left;min-height:44px}
+.acc.on{border-color:var(--ink);background:color-mix(in srgb,var(--mark) 18%,transparent)}
+.acc.dead .nm,.acc.dead .n{color:var(--danger)}
+.acc .nm{width:92px;flex:none}.acc .b{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.acc .b i{display:block;height:100%;background:var(--ok)}.acc .b i.warn{background:#E67700}.acc .b i.crit{background:var(--danger)}
+.acc .n{flex:none;font-variant-numeric:tabular-nums}
+#voiceList{margin:4px 0 8px;border:1px solid var(--line);border-radius:10px;max-height:46vh;overflow-y:auto;background:var(--card)}
+#voiceList .grp{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 10px;background:var(--paper);position:sticky;top:0;z-index:1}
+#voiceList .vc{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-top:1px solid var(--line);font-size:14px;line-height:1.25;cursor:pointer;min-height:44px}
+#voiceList .vc .t{flex:1;min-width:0}
+#voiceList .vc small{display:block;font-size:11.5px;color:var(--muted)}
+#voiceList .vc.on{background:color-mix(in srgb,var(--mark) 22%,var(--card));font-weight:700}
+#voiceList .ib{width:36px;height:36px;font-size:15px}
+.vnote{font-size:12.5px;color:var(--muted);margin:2px 0 8px 20px}
+#tab-audio.isv3 .only-classic{display:none!important}
+#tab-audio:not(.isv3) .only-v3{display:none!important}
+#tab-audio.isv2 .only-cl-lang{display:none!important}
 .vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:0}
 .vrow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
@@ -170,58 +192,76 @@ select.inp{appearance:auto}
 
   <!-- AUDIO -->
   <section class="tab" id="tab-audio">
+    <div class="box">
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap">
+        <h2 id="qTitle" style="margin:0">Лимит ElevenLabs</h2>
+        <button class="ib" data-go="loadQuota" aria-label="Обновить лимит">↻</button>
+      </div>
+      <div class="qbar"><i id="qFill"></i><s id="qNeed"></s></div>
+      <div class="qnums" id="qNums">нажми ↻, чтобы узнать остаток</div>
+      <div id="accounts"></div>
+    </div>
     <div class="box" id="elBox">
-      <h2>Голоса ElevenLabs</h2>
-      <p class="hint">Каждый говорящий читает своим голосом. Сначала стандартные голоса, ниже твои.</p>
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap">
+        <h2 style="margin:0">Голоса</h2>
+        <button class="ib" data-go="reloadVoices" aria-label="Обновить список голосов">↻</button>
+      </div>
+      <p class="hint">У каждого говорящего свой голос. Сверху стандартные — на бесплатном плане озвучивают только они и твои созданные.</p>
       <div id="elVoices"></div>
       <div class="sub">Модель</div>
       <div class="mcards" id="elModels">
         <button data-m="eleven_v3"><b>Eleven v3 — эмоции</b><small>настроение голоса, самая живая; дубли звучат по-разному</small></button>
-        <button data-m="eleven_multilingual_v2"><b>Multilingual v2 — качество</b><small>ровная и предсказуемая</small></button>
+        <button data-m="eleven_multilingual_v2"><b>Multilingual v2 — качество</b><small>ровная и предсказуемая, слышит соседние реплики</small></button>
         <button data-m="eleven_flash_v2_5"><b>Flash v2.5 — быстрее</b><small>вдвое дешевле за символ, звучит попроще</small></button>
       </div>
-      <div class="sub">Характер <small>v3 понимает только три положения</small></div>
-      <div class="seg" id="elStab"><button data-v="0">Творчески</button><button data-v="0.5">Естественно</button><button data-v="1">Стабильно</button></div>
-      <div class="sub">Настроение <small id="moodHint">можно выбрать несколько или ни одного</small></div>
-      <div class="chips" id="elMood"></div>
-      <div class="hint" id="elMoodNow"></div>
-      <details class="more"><summary>Код для модели (для своих вариантов)</summary>
-        <p class="hint">Перед каждой фразой v3 получит: <code id="elCode">—</code></p>
-        <label class="f" for="elTags">Свои теги дополнительно</label>
-        <input class="inp" id="elTags" placeholder="[sighs] [slowly]">
-      </details>
+      <div class="only-v3">
+        <div class="sub">Характер <small>v3 понимает только три положения</small></div>
+        <div class="seg" id="elStab"><button data-v="0">Творчески</button><button data-v="0.5">Естественно</button><button data-v="1">Стабильно</button></div>
+        <div class="sub">Настроение <small>можно выбрать несколько или ни одного</small></div>
+        <div class="chips" id="elMood"></div>
+        <div class="hint" id="elMoodNow"></div>
+        <details class="more"><summary>Код для модели (для своих вариантов)</summary>
+          <input class="inp" id="elTags" placeholder="[cheerful]" style="font-family:monospace">
+          <p class="hint">Модель видит английские подсказки в квадратных скобках перед фразой и сама их не произносит. Можно дописать свою, например <code>[proudly]</code>.</p>
+        </details>
+      </div>
     </div>
     <div class="box">
       <h2>Как читать</h2>
+      <div class="row only-classic">
+        <button class="btn" data-preset="flat">Ровно</button>
+        <button class="btn" data-preset="live">Живо</button>
+        <button class="btn" data-preset="warm">Тепло</button>
+      </div>
+      <label class="sl only-classic">Ровность <b id="vStb"></b> <small>ниже — живее, но больше разброс</small><input type="range" id="elStb" min="0" max="1" step="0.05"></label>
       <label class="sl">Похожесть на голос <b id="vSim"></b><input type="range" id="elSim" min="0" max="1" step="0.05"></label>
       <label class="sl">Артистичность <b id="vSty"></b> <small>0–0.4 обычно достаточно</small><input type="range" id="elSty" min="0" max="1" step="0.05"></label>
-      <label class="sl">Скорость <b id="vSpd"></b><input type="range" id="elSpd" min="0.7" max="1.2" step="0.05"></label>
+      <label class="sl">Скорость <b id="vSpd"></b><input type="range" id="elSpd" min="0.7" max="1.2" step="0.02"></label>
+      <label class="ck only-classic"><input type="checkbox" id="elCtx"><span>Слышит соседние реплики <small>интонация как в живом диалоге, знаки на них не тратятся</small></span></label>
       <label class="ck"><input type="checkbox" id="elDot"><span>Точка в конце фразы</span></label>
       <label class="ck"><input type="checkbox" id="elSeedOn"><span>Одно зерно на весь урок <small>иначе v3 читает каждый дубль по-своему</small></span></label>
       <div class="row" style="flex-wrap:nowrap"><input class="inp" id="elSeed" inputmode="numeric" aria-label="Зерно"><button class="btn" data-go="seedRoll" aria-label="Новое зерно">🎲</button></div>
-      <label class="f" for="elLang">Язык текста (для v3 и Flash)</label>
-      <select class="inp" id="elLang"><option value="de">Немецкий</option><option value="ru">Русский</option><option value="uk">Украинский</option><option value="en">Английский</option><option value="">Определить самой</option></select>
+      <label class="f only-cl-lang" for="elLang">Язык текста (для v3 и Flash)</label>
+      <select class="inp only-cl-lang" id="elLang"><option value="de">Немецкий</option><option value="ru">Русский</option><option value="uk">Украинский</option><option value="en">Английский</option><option value="">Определить самой</option></select>
     </div>
     <div class="box">
       <h2>Пробы — сравнить настройки</h2>
       <select class="inp" id="prLine" aria-label="Строка для пробы"></select>
-      <button class="btn pri big" data-go="probe" style="margin-top:10px">▶ Сделать пробу</button>
-      <p class="hint">Каждая проба остаётся в списке со своими настройками: переключай модель и ползунки, слушай подряд. «↺» возвращает настройки пробы, «В строку» ставит пробу клипом этой строки.</p>
+      <button class="btn pri big" data-go="probe">▶ Сделать пробу</button>
+      <p class="hint">Каждая проба остаётся в списке со своими настройками: переключай модель и ползунки, слушай подряд. «⤴» возвращает настройки пробы, «В строку» ставит пробу клипом этой строки.</p>
       <div id="prList"></div>
     </div>
     <div class="box">
       <h2>Озвучить урок</h2>
       <p class="hint">Уже озвученные строки не тратят знаки повторно, пока не изменишь текст, голос или настройки.</p>
       <div class="row">
-        <button class="btn pri" data-go="ttsAll" id="ttsAllBtn">Озвучить все строки</button>
+        <button class="btn pri" data-go="ttsAll" id="ttsAllBtn">Озвучить недостающие</button>
         <button class="btn" data-go="ttsRedo">Переозвучить всё</button>
       </div>
       <div class="hint" id="ttsProg"></div>
       <div class="row" style="margin-top:12px">
         <button class="btn" data-go="design">Создать голос по описанию</button>
-        <button class="btn" data-go="checkKeys">Проверить ключи</button>
       </div>
-      <div id="elKeys" class="hint"></div>
     </div>
     <div class="box">
       <h2>Общая дорожка</h2>
@@ -912,21 +952,36 @@ async function autoMark(){
   }catch(e){console.error(e);toast('Не удалось разобрать аудио: '+e.message);}
 }
 
-/* ---------- ElevenLabs ---------- */
+/* ---------- ElevenLabs (голоса как в Uhrzeit) ---------- */
 const MODELS=['eleven_v3','eleven_multilingual_v2','eleven_flash_v2_5'];
-const MOODS=[
-  {k:'cheer',e:'😊',t:'Весело',c:'[cheerfully]'},{k:'warm',e:'🤗',t:'Тепло',c:'[warmly]'},{k:'friend',e:'🙂',t:'Дружелюбно',c:'[friendly]'},
-  {k:'calm',e:'😌',t:'Спокойно',c:'[calmly]'},{k:'excited',e:'🤩',t:'Восторженно',c:'[excited]'},{k:'play',e:'😜',t:'Игриво',c:'[playfully]'},
-  {k:'conf',e:'💪',t:'Уверенно',c:'[confidently]'},{k:'soft',e:'🪶',t:'Мягко',c:'[softly]'},{k:'whisper',e:'🤫',t:'Шёпотом',c:'[whispers]'},
-  {k:'curious',e:'🤔',t:'С интересом',c:'[curious]'}];
-const newSeed=()=>Math.floor(Math.random()*999999999);
-const EL_DEF={model:'eleven_v3',lang:'de',stability:1,similarity:0.8,style:0.4,speed:1,moods:[],tags:'',dot:false,seedOn:true,seed:null,def:null};
+const TAGS=[
+  {code:'[cheerful]',label:'😊 Весело'},{code:'[warmly]',label:'🤗 Тепло'},{code:'[friendly]',label:'🙂 Дружелюбно'},
+  {code:'[calm]',label:'😌 Спокойно'},{code:'[excited]',label:'🤩 Восторженно'},{code:'[playfully]',label:'😜 Игриво'},
+  {code:'[confident]',label:'💪 Уверенно'},{code:'[softly]',label:'🪶 Мягко'},{code:'[whispers]',label:'🤫 Шёпотом'},
+  {code:'[curious]',label:'🤔 С интересом'}];
+const TAG_LABEL={};TAGS.forEach(t=>{TAG_LABEL[t.code]=t.label;});
+const tagList=code=>String(code||'').match(/\[[^\]]+\]/g)||[];
+const tagsText=code=>tagList(code).map(c=>TAG_LABEL[c.toLowerCase()]||c).join(' + ');
+const PRESETS={
+  flat:{stab:0.8,sim:0.8,style:0,speed:0.92,ctx:true},
+  live:{stab:0.45,sim:0.75,style:0.15,speed:1,ctx:true},
+  warm:{stab:0.35,sim:0.75,style:0.35,speed:0.95,ctx:true}};
+const newSeed=()=>Math.floor(Math.random()*1e9);
+const EL_DEF={model:'eleven_multilingual_v2',lang:'de',v3stab:0.5,stab:0.45,sim:0.75,style:0.15,speed:1,ctx:true,tags:'',dot:true,seedOn:true,seed:null,def:null};
+const MOOD_OLD={cheer:'[cheerful]',warm:'[warmly]',friend:'[friendly]',calm:'[calm]',excited:'[excited]',play:'[playfully]',conf:'[confident]',soft:'[softly]',whisper:'[whispers]',curious:'[curious]'};
 function elS(){
-  if(!S.el||S.el.__v!==2){S.el=Object.assign({},EL_DEF,S.el||{},{__v:2});}
+  if(!S.el||S.el.__v!==3){
+    const o=S.el||{};const n=Object.assign({},EL_DEF);
+    if(o.model)n.model=o.model;if(o.lang!=null)n.lang=o.lang;if(o.def)n.def=o.def;
+    if(o.similarity!=null)n.sim=o.similarity;if(o.style!=null)n.style=o.style;if(o.speed!=null)n.speed=o.speed;
+    if(o.stability!=null)n.v3stab=o.stability;
+    if(o.dot!=null)n.dot=o.dot;if(o.seedOn!=null)n.seedOn=o.seedOn;if(o.seed!=null)n.seed=o.seed;
+    const tg=(o.moods||[]).map(k=>MOOD_OLD[k]).filter(Boolean).join(' ');n.tags=(tg+' '+(o.tags||'')).trim();
+    n.__v=3;S.el=n;
+  }
   const e=S.el;
   if(!MODELS.includes(e.model))e.model='eleven_multilingual_v2';
-  if(![0,0.5,1].includes(+e.stability))e.stability=+e.stability<0.25?0:+e.stability<0.75?0.5:1;
-  if(!Array.isArray(e.moods))e.moods=[];
+  if(![0,0.5,1].includes(+e.v3stab))e.v3stab=0.5;
   if(e.seed==null)e.seed=newSeed();
   return e;
 }
@@ -936,7 +991,7 @@ async function api(body,asBlob){
     let r;
     try{r=await fetch('/api/eleven',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
     catch(e){throw new Error('нет связи с сервером');}
-    if(r.ok)return asBlob?{blob:await r.blob(),key:r.headers.get('X-Key')}:r.json();
+    if(r.ok)return asBlob?{blob:await r.blob(),key:parseInt(r.headers.get('X-Key'),10)}:r.json();
     let j={};try{j=await r.json();}catch(e){}
     if(r.status===404&&!j.code)throw new Error('функция /api/eleven не найдена — страница открыта не с Vercel');
     if(j.code==='need_pass'&&t===0){
@@ -945,29 +1000,68 @@ async function api(body,asBlob){
       PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;
     }
     const c=String(j.code||'');
-    const nice=/quota/.test(c)?'на ключе закончились знаки ('+(j.error||c)+')':/invalid_api_key/.test(c)?'ключ не работает':/free_users|subscription_required|payment/.test(c)?'доступно только на платном тарифе: '+(j.error||c):/voice_not_found/.test(c)?'голос не найден — обнови список голосов':null;
+    const nice=c==='paid_voice'?j.error:/quota/.test(c)?(j.error||'кончились символы'):/invalid_api_key/.test(c)?'ключ не работает':/voice_not_found/.test(c)?'голоса нет в этом аккаунте — выбери голос заново':null;
     const err=new Error(nice||j.error||('HTTP '+r.status));err.code=j.code;throw err;
   }
   throw new Error('неверный код доступа');
 }
-let VOICES=null,voicesP=null,KEYS=null;
+const nf=n=>Number(n||0).toLocaleString('ru-RU');
+
+/* --- аккаунты и лимит --- */
+let QUOTA=null,ACC=0,manualAcc=false;
+try{const a=JSON.parse(localStorage.getItem('ozv:acc')||'null');if(a){ACC=a.i|0;manualAcc=!!a.m;}}catch(e){}
+function rememberAcc(){try{localStorage.setItem('ozv:acc',JSON.stringify({i:ACC,m:manualAcc}));}catch(e){}}
+async function loadQuota(){
+  $('qNums').textContent='загружаю…';
+  try{
+    const d=await api({a:'keys'});QUOTA=d;
+    const acc=(d.keys||[])[ACC];
+    if(Number.isInteger(d.best)&&(!manualAcc||!acc||!acc.ok||acc.left<=0)){
+      if(manualAcc&&acc)toast('Аккаунт '+(ACC+1)+' больше не годится — беру '+(d.best+1));
+      if(ACC!==d.best){ACC=d.best;VOICES=null;voicesP=null;}
+      manualAcc=false;rememberAcc();
+    }
+    paintQuota();
+  }catch(e){QUOTA=null;$('qNums').textContent='не удалось узнать: '+e.message;}
+}
+function needChars(){let n=0;ttsNeed(false).forEach(i=>{const l=S.lines[i],v=voiceFor(l);if(v)n+=buildReq(i,v,elS()).text.length;});return n;}
+function paintQuota(){
+  if(!QUOTA)return;
+  const q=QUOTA,accs=q.keys||[],many=accs.length>1,need=needChars();
+  const f=$('qFill');f.style.width=q.percent+'%';f.className=q.percent>=90?'crit':q.percent>=70?'warn':'';
+  const m=$('qNeed');
+  if(need>0&&q.limit){m.style.display='block';m.style.left=q.percent+'%';m.style.width=Math.min(100-q.percent,need/q.limit*100)+'%';}else m.style.display='none';
+  $('qTitle').textContent='Лимит ElevenLabs · '+q.percent+'%'+(many?' · аккаунтов: '+accs.length:'');
+  $('accounts').innerHTML=!many?'':accs.map(a=>{
+    const cls=a.percent>=90?'crit':a.percent>=70?'warn':'',bad=!a.ok;
+    return '<button class="acc'+(bad?' dead':'')+(a.i===ACC?' on':'')+'" data-acc="'+a.i+'"><span class="nm">'+(a.i===ACC?'<b>▶ '+(a.i+1)+'</b>':(a.i+1))+' · '+esc(a.tier||'—')+'</span><span class="b"><i class="'+cls+'" style="width:'+(bad?0:a.percent)+'%"></i></span><span class="n">'+(bad?'лимит ?':nf(a.left)+' симв.')+'</span></button>';
+  }).join('')+accs.filter(a=>!a.ok).map(a=>'<div class="hint warn">Аккаунт '+(a.i+1)+': '+esc(a.error)+(a.noPermission?'<br>Озвучка, скорее всего, работает — просто у ключа нет права User → Access, поэтому остаток не виден.':'')+'</div>').join('')+
+    '<div class="hint">Нажми на аккаунт, чтобы озвучивать с него'+(manualAcc?' · выбран вручную':' · выбирается сам')+'</div>';
+  const next=accs.filter(a=>a.ok&&a.reset).sort((a,b)=>a.reset-b.reset)[0];
+  let when='';
+  if(next){const dt=new Date(next.reset*1000),days=Math.max(0,Math.ceil((dt-Date.now())/864e5));when=' · обновление '+dt.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})+' (через '+days+' дн.)';}
+  $('qNums').innerHTML='осталось <b>'+nf(q.left)+'</b> из '+nf(q.limit)+(many?' на всех аккаунтах':' · '+esc((accs[0]||{}).tier||'—'))+when+'<br>'+
+    (need>0?'на озвучку урока нужно <b>'+nf(need)+'</b> символов — '+(need<=q.left?'хватает':'<b class="warn">не хватает '+nf(need-q.left)+'</b>'):'всё уже озвучено');
+}
+$('accounts').addEventListener('click',e=>{
+  const b=e.target.closest('[data-acc]');if(!b)return;
+  ACC=+b.dataset.acc;manualAcc=true;rememberAcc();paintQuota();
+  toast('Озвучиваю с аккаунта '+(ACC+1));
+  VOICES=null;voicesP=null;if(openRow!=null)showVoiceList(openRow);
+});
+
+/* --- голоса --- */
+let VOICES=null,voicesP=null,voicesErr='';
 function loadVoices(force){
   if(force){VOICES=null;voicesP=null;}
-  if(!voicesP)voicesP=api({a:'voices'}).then(j=>{VOICES=j.voices||[];return VOICES;}).catch(e=>{voicesP=null;throw e;});
+  if(!voicesP)voicesP=api({a:'voices',key:ACC}).then(j=>{VOICES=j.voices||[];voicesErr='';return VOICES;}).catch(e=>{voicesP=null;voicesErr=e.message;throw e;});
   return voicesP;
 }
-async function loadKeys(){const j=await api({a:'keys'});KEYS=j.keys||[];return KEYS;}
-const nf=n=>Number(n||0).toLocaleString('ru-RU');
-function keyLine(k){
-  if(!k.ok)return 'Ключ '+(k.i+1)+' '+k.tail+': не работает — '+k.error;
-  const left=(k.limit||0)-(k.used||0);
-  const rs=k.reset?', обновится '+new Date(k.reset*1000).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}):'';
-  return 'Ключ '+(k.i+1)+' '+k.tail+' ('+k.tier+'): осталось '+nf(left)+' из '+nf(k.limit)+rs;
-}
-const gSign=v=>{const g=(v.labels||{}).gender;return g==='female'?' · ж':g==='male'?' · м':'';};
-function voiceMeta(v){
-  const L=v.labels||{};
-  return [L.descriptive||L.description,L.accent,L.use_case,v.key!=null?'ключ '+(v.key+1):''].filter(Boolean).map(x=>String(x).replace(/_/g,' ')).join(' · ');
+const shortName=v=>String(v.name).split(' - ')[0].trim();
+const gSign=v=>{const g=(v.labels||{}).gender||(v.labels||{}).Gender||'';return g==='female'?' · ж':g==='male'?' · м':'';};
+function voiceAbout(v){
+  const tail=String(v.name).split(' - ').slice(1).join(' - ').trim(),L=v.labels||{};
+  return [tail,L.descriptive,L.accent,L.use_case,L.description].filter(Boolean).map(x=>String(x).replace(/_/g,' ')).join(' · ');
 }
 const pvA=new Audio();
 function playPreview(src){
@@ -975,75 +1069,29 @@ function playPreview(src){
   if(pvA.dataset.src===src&&!pvA.paused){pvA.pause();return;}
   pvA.src=src;pvA.dataset.src=src;pvA.play().catch(e=>toast('Не играет: '+e.message));
 }
-function panel(title,html){
-  let res;const done=new Promise(r=>res=r);
-  const sc=document.createElement('div');sc.className='scrim';
-  sc.innerHTML='<div class="sheet" role="dialog"><h3>'+esc(title)+'</h3><div class="pb">'+html+'</div></div>';
-  document.body.appendChild(sc);
-  const sh=sc.querySelector('.pb');
-  const close=v=>{if(!sc.isConnected)return;sc.remove();pvA.pause();res(v===undefined?null:v);};
-  sc.addEventListener('click',e=>{if(e.target===sc)close(null);});
-  return {sh,close,done};
-}
-async function pickVoice(title,cur){
-  const P=panel(title,'<p class="hint">Загружаю голоса…</p>');
-  const draw=vs=>{
-    const std=vs.filter(v=>v.key==null),mine=vs.filter(v=>v.key!=null);
-    const row=v=>{const i=vs.indexOf(v),on=cur&&cur.id===v.id;return '<div class="vit"><button class="ib" data-pv="'+i+'" aria-label="Послушать"'+(v.preview?'':' disabled')+'>▶</button><div class="nm">'+(on?'<b>':'')+esc(v.name+gSign(v))+(on?' ✓</b>':'')+'<small>'+esc(voiceMeta(v))+'</small></div><button class="btn" data-pick="'+i+'">Выбрать</button></div>';};
-    const perKey={};mine.forEach(v=>{perKey[v.key]=(perKey[v.key]||0)+1;});
-    P.sh.innerHTML='<div class="sec">Стандартные — с моделями v3 и Multilingual читают по-немецки</div>'+(std.length?std.map(row).join(''):'<p class="hint">Список пуст.</p>')+
-      '<div class="sec">Мои голоса</div>'+(mine.length?mine.map(row).join(''):'<p class="hint">Своих пока нет — «Создать голос по описанию».</p>')+
-      '<p class="hint">Стандартных '+std.length+(Object.keys(perKey).length?' · своих: '+Object.keys(perKey).map(k=>'ключ '+(+k+1)+' — '+perKey[k]).join(', '):'')+'</p>'+
-      '<div class="row"><button class="btn" data-rl="1">↻ Обновить список</button><button class="btn" data-none="1">Без голоса</button></div>';
-  };
-  P.sh.addEventListener('click',async e=>{
-    const t=e.target.closest('button');if(!t||!VOICES)return;
-    if(t.dataset.pv)playPreview(VOICES[+t.dataset.pv].preview);
-    if(t.dataset.pick){const v=VOICES[+t.dataset.pick];P.close({id:v.id,name:v.name+gSign(v),key:v.key});}
-    if(t.dataset.none)P.close(false);
-    if(t.dataset.rl){P.sh.innerHTML='<p class="hint">Загружаю голоса…</p>';try{draw(await loadVoices(true));}catch(err){P.sh.innerHTML='<p class="hint warn">'+esc(err.message)+'</p>';}}
-  });
-  loadVoices().then(draw).catch(err=>{P.sh.innerHTML='<p class="hint warn">Не удалось загрузить голоса: '+esc(err.message)+'</p>';});
-  return P.done;
-}
-async function assignVoice(target){ // speaker object or 'def'
-  const isDef=target==='def';
-  const v=await pickVoice('Голос для: '+(isDef?'строк без говорящего':target.name),isDef?elS().def:target.voice);
-  if(v===null)return;
-  if(isDef)elS().def=v||null;else target.voice=v||null;
-  renderEl();renderLines();save();
-}
-function voiceFor(l){const s=spk(l.spk);return (s&&s.voice)||elS().def||null;}
-function moodCode(e){const m=MOODS.filter(x=>e.moods.includes(x.k)).map(x=>x.c).join(' ');return (m+' '+(e.tags||'').trim()).trim();}
-function buildReq(l,v,e){
-  let text=l.text.trim();
-  if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
-  if(e.model==='eleven_v3'){const pre=moodCode(e);if(pre)text=pre+' '+text;}
-  const r={a:'tts',text,voice:v.id,key:v.key,model:e.model,lang:e.lang,stability:e.stability,similarity:e.similarity,style:e.style,speed:e.speed};
-  if(e.seedOn)r.seed=e.seed;
-  return r;
-}
-function ttsSig(l,e){const v=voiceFor(l);if(!v)return null;const r=buildReq(l,v,e||elS());delete r.a;return JSON.stringify(r);}
+let openRow=null; // id говорящего или '-'
+function rowTarget(id){return id==='-'?null:spk(id);}
+function curVoice(id){return id==='-'?elS().def:(spk(id)||{}).voice||null;}
 function renderEl(){
   const e=elS();
   const used=new Set(S.lines.filter(l=>l.type!=='head'&&l.text.trim()).map(l=>l.spk||'-'));
-  const rows=S.speakers.map(s=>'<div class="vrow" style="--c:'+esc(s.color)+'"><span class="dot"></span><b>'+esc(s.name)+'</b><button class="btn vbtn'+(s.voice?'':' none')+'" data-vs="'+s.id+'">'+esc(s.voice?s.voice.name:'выбрать голос')+' ▾</button></div>');
-  if(used.has('-')||!S.speakers.length)rows.push('<div class="vrow"><span class="dot" style="--c:var(--line)"></span><b>Без говорящего</b><button class="btn vbtn'+(e.def?'':' none')+'" data-vs="-">'+esc(e.def?e.def.name:'выбрать голос')+' ▾</button></div>');
+  const row=(id,name,color,v)=>'<div class="vrow" style="--c:'+esc(color)+'"><span class="dot"></span><b>'+esc(name)+'</b><button class="btn vbtn'+(v?'':' none')+'" data-vs="'+id+'">'+(v?'<b>'+esc(v.name)+'</b>':'выбрать голос')+' ▾</button></div>'+
+    (v&&v.about?'<div class="vnote">'+esc(v.about)+'</div>':'')+(openRow===id?'<div id="voiceList"></div>':'');
+  const rows=S.speakers.map(s=>row(s.id,s.name,s.color,s.voice));
+  if(used.has('-')||!S.speakers.length)rows.push(row('-','Без говорящего','var(--line)',e.def));
   $('elVoices').innerHTML=rows.join('');
-  $('elModels').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===e.model));
-  $('elStab').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+e.stability));
+  if(openRow!=null)showVoiceList(openRow);
   const v3=e.model==='eleven_v3';
-  $('elMood').innerHTML=MOODS.map(m=>'<button class="mood'+(e.moods.includes(m.k)?' on':'')+'" data-mood="'+m.k+'" aria-pressed="'+e.moods.includes(m.k)+'">'+m.e+' '+m.t+'</button>').join('');
-  $('elMood').classList.toggle('off',!v3);
-  $('moodHint').textContent=v3?'можно выбрать несколько или ни одного':'работает только в Eleven v3';
-  const sel=MOODS.filter(x=>e.moods.includes(x.k));
-  $('elMoodNow').textContent=sel.length?'Сейчас: '+sel.map(x=>x.e+' '+x.t).join(' + '):'Сейчас: без настроения';
-  $('elCode').textContent=moodCode(e)||'—';
-  if(document.activeElement!==$('elTags'))$('elTags').value=e.tags||'';
-  $('elSim').value=e.similarity;$('vSim').textContent=(+e.similarity).toFixed(2);
+  $('tab-audio').classList.toggle('isv3',v3);
+  $('tab-audio').classList.toggle('isv2',e.model==='eleven_multilingual_v2');
+  $('elModels').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===e.model));
+  $('elStab').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+e.v3stab));
+  paintChips();
+  $('elStb').value=e.stab;$('vStb').textContent=(+e.stab).toFixed(2);
+  $('elSim').value=e.sim;$('vSim').textContent=(+e.sim).toFixed(2);
   $('elSty').value=e.style;$('vSty').textContent=(+e.style).toFixed(2);
   $('elSpd').value=e.speed;$('vSpd').textContent=(+e.speed).toFixed(2)+'×';
-  $('elDot').checked=!!e.dot;$('elSeedOn').checked=!!e.seedOn;
+  $('elCtx').checked=!!e.ctx;$('elDot').checked=!!e.dot;$('elSeedOn').checked=!!e.seedOn;
   if(document.activeElement!==$('elSeed'))$('elSeed').value=e.seed;
   $('elSeed').disabled=!e.seedOn;
   $('elLang').value=e.lang;
@@ -1051,38 +1099,107 @@ function renderEl(){
   const opts=S.lines.map((l,i)=>l.type!=='head'&&l.text.trim()?'<option value="'+i+'">'+esc((spk(l.spk)?spk(l.spk).name+': ':'')+l.text.trim().slice(0,60))+'</option>':'').join('');
   pl.innerHTML=opts||'<option value="">Нет строк — добавь текст</option>';
   if(keep&&pl.querySelector('option[value="'+keep+'"]'))pl.value=keep;
-  renderProbes();
+  renderProbes();paintQuota();
 }
-function elChanged(){renderEl();save();}
-$('elVoices').addEventListener('click',e=>{const b=e.target.closest('[data-vs]');if(!b)return;assignVoice(b.dataset.vs==='-'?'def':spk(b.dataset.vs));});
-$('elModels').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){elS().model=b.dataset.m;elChanged();}});
-$('elStab').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){elS().stability=+b.dataset.v;elChanged();}});
-$('elMood').addEventListener('click',e=>{const b=e.target.closest('[data-mood]');if(!b)return;const m=elS().moods,k=b.dataset.mood,i=m.indexOf(k);if(i<0)m.push(k);else m.splice(i,1);elChanged();});
-$('elTags').addEventListener('input',e=>{elS().tags=e.target.value;$('elCode').textContent=moodCode(elS())||'—';save();});
-[['elSim','similarity','vSim',''],['elSty','style','vSty',''],['elSpd','speed','vSpd','×']].forEach(([id,f,lab,suf])=>{
-  $(id).addEventListener('input',e=>{elS()[f]=+e.target.value;$(lab).textContent=(+e.target.value).toFixed(2)+suf;save();});
+function paintChips(){
+  const e=elS(),have=tagList(e.tags).map(c=>c.toLowerCase());
+  $('elMood').innerHTML=TAGS.map(t=>'<button class="mood'+(have.includes(t.code)?' on':'')+'" data-tag="'+t.code+'" aria-pressed="'+have.includes(t.code)+'">'+t.label+'</button>').join('');
+  $('elMoodNow').textContent=e.tags.trim()?'Сейчас: '+tagsText(e.tags):'Сейчас: без настроения';
+  if(document.activeElement!==$('elTags'))$('elTags').value=e.tags;
+}
+function showVoiceList(id){
+  const box=$('voiceList');if(!box)return;
+  box.innerHTML='<div class="hint" style="padding:10px">Загружаю голоса аккаунта '+(ACC+1)+'…</div>';
+  loadVoices().then(vs=>{
+    if(!$('voiceList'))return;
+    const cur=curVoice(id);
+    const std=vs.filter(v=>v.cat==='premade'),mine=vs.filter(v=>v.cat!=='premade');
+    const rows=list=>list.map(v=>{const i=vs.indexOf(v),on=cur&&cur.id===v.id;return '<div class="vc'+(on?' on':'')+'" data-vi="'+i+'"><span class="t">'+esc(shortName(v))+gSign(v)+(voiceAbout(v)?'<small>'+esc(voiceAbout(v))+'</small>':'')+'</span>'+(v.preview?'<button class="ib" data-pv="'+i+'" aria-label="Послушать">▶</button>':'')+'</div>';}).join('');
+    box.innerHTML=(std.length?'<div class="grp">Стандартные</div>'+rows(std):'')+
+      (mine.length?'<div class="grp">Мои — созданные и добавленные</div>'+rows(mine):'')+
+      '<div class="hint" style="padding:8px 10px">Аккаунт '+(ACC+1)+' · голосов '+vs.length+', своих '+mine.length+'</div>'+
+      '<div class="vc" data-none="1"><span class="t" style="color:var(--muted)">Без голоса</span></div>';
+    const on=box.querySelector('.vc.on');if(on)on.scrollIntoView({block:'nearest'});
+  }).catch(err=>{if($('voiceList'))$('voiceList').innerHTML='<div class="hint warn" style="padding:10px">Список голосов не загрузился: '+esc(err.message)+'</div>';});
+}
+$('elVoices').addEventListener('click',e=>{
+  const pv=e.target.closest('[data-pv]');
+  if(pv){e.stopPropagation();playPreview(VOICES[+pv.dataset.pv].preview);return;}
+  const b=e.target.closest('[data-vs]');
+  if(b){openRow=openRow===b.dataset.vs?null:b.dataset.vs;pvA.pause();renderEl();return;}
+  const vc=e.target.closest('.vc');if(!vc||openRow==null)return;
+  let v=null;
+  if(!vc.dataset.none){const x=VOICES[+vc.dataset.vi];v={id:x.id,name:shortName(x)+gSign(x),about:voiceAbout(x),key:ACC,pin:x.cat!=='premade'};}
+  const t=rowTarget(openRow);
+  if(openRow==='-')elS().def=v;else if(t)t.voice=v;
+  openRow=null;pvA.pause();renderEl();renderLines();save();
 });
-$('elDot').addEventListener('change',e=>{elS().dot=e.target.checked;save();});
+async function assignVoice(target){ // из меню говорящего на вкладке «Текст»
+  document.querySelector('#nav [data-tab="audio"]').click();
+  openRow=target==='def'?'-':target.id;renderEl();
+  setTimeout(()=>{const b=document.querySelector('[data-vs="'+openRow+'"]');if(b)b.scrollIntoView({block:'start'});},50);
+}
+function voiceFor(l){const s=spk(l.spk);return (s&&s.voice)||elS().def||null;}
+function neighbour(i,dir){for(let j=i+dir;j>=0&&j<S.lines.length;j+=dir){const l=S.lines[j];if(l.type!=='head'&&l.text.trim())return l.text.trim();}return '';}
+function buildReq(i,v,e){
+  const l=S.lines[i],v3=e.model==='eleven_v3';
+  let text=l.text.trim();
+  if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
+  if(v3&&e.tags.trim())text=e.tags.trim()+' '+text;
+  const pin=v.pin!=null?!!v.pin:v.key!=null;
+  const r={a:'tts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
+  if(e.seedOn)r.seed=e.seed;
+  if(!v3&&e.ctx){r.prev=neighbour(i,-1);r.next=neighbour(i,1);}
+  return r;
+}
+function ttsSig(l,e){
+  const i=S.lines.indexOf(l),v=voiceFor(l);if(!v||i<0)return null;
+  const r=buildReq(i,v,e||elS());delete r.a;delete r.key;delete r.prev;delete r.next;
+  r.ctx=!!(e||elS()).ctx&&r.model!=='eleven_v3';
+  return JSON.stringify(r);
+}
+function elChanged(){renderEl();renderLines();save();}
+$('elModels').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){elS().model=b.dataset.m;elChanged();}});
+$('elStab').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){elS().v3stab=+b.dataset.v;elChanged();}});
+$('elMood').addEventListener('click',e=>{
+  const b=e.target.closest('[data-tag]');if(!b)return;
+  const el=elS(),code=b.dataset.tag;let list=tagList(el.tags);
+  const has=list.some(c=>c.toLowerCase()===code);
+  list=has?list.filter(c=>c.toLowerCase()!==code):list.concat(code);
+  el.tags=list.join(' ');paintChips();renderLines();paintQuota();save();
+});
+$('elTags').addEventListener('input',e=>{elS().tags=e.target.value;paintChips();save();});
+$('elTags').addEventListener('change',()=>renderLines());
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{const p=PRESETS[b.dataset.preset],e=elS();e.stab=p.stab;e.sim=p.sim;e.style=p.style;e.speed=p.speed;e.ctx=p.ctx;elChanged();}));
+[['elStb','stab','vStb',''],['elSim','sim','vSim',''],['elSty','style','vSty',''],['elSpd','speed','vSpd','×']].forEach(([id,f,lab,suf])=>{
+  $(id).addEventListener('input',e=>{elS()[f]=+e.target.value;$(lab).textContent=(+e.target.value).toFixed(2)+suf;save();});
+  $(id).addEventListener('change',()=>renderLines());
+});
+$('elCtx').addEventListener('change',e=>{elS().ctx=e.target.checked;elChanged();});
+$('elDot').addEventListener('change',e=>{elS().dot=e.target.checked;elChanged();});
 $('elSeedOn').addEventListener('change',e=>{elS().seedOn=e.target.checked;elChanged();});
 $('elSeed').addEventListener('input',e=>{const v=parseInt(e.target.value,10);if(isFinite(v)&&v>=0){elS().seed=Math.min(4294967295,v);save();}});
-$('elLang').addEventListener('change',e=>{elS().lang=e.target.value;save();});
+$('elSeed').addEventListener('change',()=>renderLines());
+$('elLang').addEventListener('change',e=>{elS().lang=e.target.value;elChanged();});
 
 async function ttsLine(i){
   const l=S.lines[i],v=voiceFor(l),e=elS();
   if(!l.text.trim())throw new Error('пустая строка');
   if(!v){const s=spk(l.spk);throw new Error('не выбран голос для «'+(s?s.name:'без говорящего')+'» (вкладка «Аудио»)');}
-  const r=await api(buildReq(l,v,e),true);
+  const req=buildReq(i,v,e);
+  const r=await api(req,true);
+  if(!req.pin&&Number.isInteger(r.key)&&r.key!==ACC){ACC=r.key;rememberAcc();toast('Символы кончились — перешёл на аккаунт '+(ACC+1));}
   l.clip=addBlob(r.blob);l.gen=ttsSig(l,e);
 }
-/* probes */
+/* пробы */
 const PROBES=[];
 function setLabel(s){
-  const st={0:'Творчески',0.5:'Естественно',1:'Стабильно'}[s.stability];
-  const md=s.model==='eleven_v3'?MOODS.filter(x=>s.moods.includes(x.k)).map(x=>x.e).join('')+(s.tags?' '+s.tags:''):'';
-  return [{eleven_v3:'v3',eleven_multilingual_v2:'Multi v2',eleven_flash_v2_5:'Flash'}[s.model],st,md,(+s.similarity).toFixed(2)+'/'+(+s.style).toFixed(2)+'/'+(+s.speed).toFixed(2)+'×',s.seedOn?'зерно '+s.seed:''].filter(Boolean).join(' · ');
+  const v3=s.model==='eleven_v3';
+  const st=v3?{0:'Творчески',0.5:'Естественно',1:'Стабильно'}[s.v3stab]:'ровность '+(+s.stab).toFixed(2);
+  return [{eleven_v3:'v3',eleven_multilingual_v2:'Multi v2',eleven_flash_v2_5:'Flash'}[s.model],st,v3&&s.tags?tagsText(s.tags):'',(+s.sim).toFixed(2)+'/'+(+s.style).toFixed(2)+'/'+(+s.speed).toFixed(2)+'×',!v3&&s.ctx?'контекст':'',s.seedOn?'зерно '+s.seed:''].filter(Boolean).join(' · ');
 }
 function renderProbes(){
-  $('prList').innerHTML=PROBES.map((p,n)=>'<div class="vit"><button class="ib" data-prp="'+n+'" aria-label="Послушать">▶</button><div class="nm">'+(PROBES.length-n)+'. '+esc(p.voice)+'<small>'+esc(setLabel(p.set))+'</small><small>'+esc(p.text.slice(0,50))+'</small></div><button class="ib" data-prr="'+n+'" aria-label="Вернуть настройки">↺</button><button class="btn" data-pru="'+n+'">В строку</button></div>').join('');
+  $('prList').innerHTML=PROBES.map((p,n)=>'<div class="vit"><button class="ib" data-prp="'+n+'" aria-label="Послушать">▶</button><div class="nm">'+(PROBES.length-n)+'. '+esc(p.voice)+'<small>'+esc(setLabel(p.set))+'</small><small>'+esc(p.text.slice(0,50))+'</small></div><button class="ib" data-prr="'+n+'" aria-label="Вернуть настройки">⤴</button><button class="btn" data-pru="'+n+'">В строку</button></div>').join('');
 }
 async function probe(){
   const i=parseInt($('prLine').value,10);if(!isFinite(i)||!S.lines[i]){toast('Выбери строку для пробы.');return;}
@@ -1091,8 +1208,9 @@ async function probe(){
   const e=elS(),set=JSON.parse(JSON.stringify(e));
   const btn=document.querySelector('[data-go="probe"]');btn.disabled=true;btn.textContent='Озвучиваю…';
   try{
-    const r=await api(buildReq(l,v,e),true);
-    PROBES.unshift({i,lineId:l.id,text:l.text.trim(),voice:v.name,blob:r.blob,url:URL.createObjectURL(r.blob),set});
+    const r=await api(buildReq(i,v,e),true);
+    if(Number.isInteger(r.key)&&r.key!==ACC&&!(v.pin!=null?v.pin:v.key!=null)){ACC=r.key;rememberAcc();}
+    PROBES.unshift({lineId:l.id,text:l.text.trim(),voice:v.name,blob:r.blob,url:URL.createObjectURL(r.blob),set});
     if(PROBES.length>20){const x=PROBES.pop();URL.revokeObjectURL(x.url);}
     renderProbes();playPreview(PROBES[0].url);
   }catch(err){toast('Проба не удалась: '+err.message);}
@@ -1101,27 +1219,30 @@ async function probe(){
 $('prList').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.prp)playPreview(PROBES[+b.dataset.prp].url);
-  if(b.dataset.prr){const p=PROBES[+b.dataset.prr];const keepDef=elS().def;S.el=Object.assign({},p.set,{def:keepDef,__v:2});elChanged();toast('Настройки пробы возвращены');}
+  if(b.dataset.prr){const p=PROBES[+b.dataset.prr];const keepDef=elS().def;S.el=Object.assign({},p.set,{def:keepDef,__v:3});elChanged();toast('Настройки пробы возвращены');}
   if(b.dataset.pru){
-    const p=PROBES[+b.dataset.pru];const i=S.lines.findIndex(l=>l.id===p.lineId);
-    if(i<0){toast('Этой строки уже нет.');return;}
-    const l=S.lines[i];
+    const p=PROBES[+b.dataset.pru];const l=S.lines.find(x=>x.id===p.lineId);
+    if(!l){toast('Этой строки уже нет.');return;}
     if(l.text.trim()!==p.text){toast('Текст строки изменился после пробы.');return;}
     l.clip=addBlob(p.blob);l.gen=ttsSig(l,p.set);renderLines();renderAudio();save();toast('Проба стала клипом строки');
   }
 });
-let ttsBusy=false,ttsStop=false;
-async function ttsAll(force){
-  if(ttsBusy){ttsStop=true;$('ttsProg').textContent='Останавливаю после текущей строки…';return;}
+function ttsNeed(force){
   const need=[];
   S.lines.forEach((l,i)=>{if(l.type==='head'||!l.text.trim())return;
     if(l.clip&&!l.gen)return; // свой загруженный клип не трогаем
     if(!l.clip||force||l.gen!==ttsSig(l))need.push(i);});
+  return need;
+}
+let ttsBusy=false,ttsStop=false;
+async function ttsAll(force){
+  if(ttsBusy){ttsStop=true;$('ttsProg').textContent='Останавливаю после текущей строки…';return;}
+  const need=ttsNeed(force);
   if(!need.length){toast(S.lines.length?'Все строки уже озвучены.':'Нет текста для озвучки.');return;}
   const miss=[...new Set(need.filter(i=>!voiceFor(S.lines[i])).map(i=>{const s=spk(S.lines[i].spk);return s?s.name:'без говорящего';}))];
   if(miss.length){toast('Выбери голос: '+miss.join(', '));return;}
-  const chars=need.reduce((a,i)=>a+buildReq(S.lines[i],voiceFor(S.lines[i]),elS()).text.length,0);
-  const k=await sheet('Озвучить строк: '+need.length+' (~'+nf(chars)+' знаков)?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
+  const chars=need.reduce((a,i)=>a+buildReq(i,voiceFor(S.lines[i]),elS()).text.length,0);
+  const k=await sheet('Озвучить строк: '+need.length+' (~'+nf(chars)+' символов)?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
   if(k!=='go')return;
   ttsBusy=true;ttsStop=false;$('ttsAllBtn').textContent='■ Стоп';$('ttsProg').classList.remove('warn');
   let done=0,err=null;
@@ -1131,30 +1252,26 @@ async function ttsAll(force){
     try{await ttsLine(i);done++;save();}
     catch(e){err='Строка '+(i+1)+': '+e.message;break;}
   }
-  ttsBusy=false;$('ttsAllBtn').textContent='Озвучить все строки';
+  ttsBusy=false;$('ttsAllBtn').textContent='Озвучить недостающие';
   $('ttsProg').textContent=err?'Остановлено. '+err:(ttsStop?'Остановлено: озвучено '+done+'.':'Готово: озвучено '+done+'.');
   $('ttsProg').classList.toggle('warn',!!err);
-  renderLines();renderAudio();save();
+  renderLines();renderAudio();save();if(QUOTA)loadQuota();
 }
 async function chooseKey(title){
-  toast('Проверяю ключи…');
-  let ks;try{ks=await loadKeys();}catch(e){toast('Ошибка: '+e.message);return null;}
-  const ok=ks.filter(k=>k.ok);if(!ok.length){toast('Ни один ключ не работает.');return null;}
+  if(!QUOTA){toast('Проверяю аккаунты…');try{await loadQuota();}catch(e){}}
+  const ok=((QUOTA&&QUOTA.keys)||[]).filter(k=>k.ok);
+  if(!ok.length)return ACC;
   if(ok.length===1)return ok[0].i;
-  const k=await sheet(title,ok.map(x=>({k:String(x.i),icon:'🔑',label:keyLine(x)})));
+  const k=await sheet(title,ok.map(x=>({k:String(x.i),icon:x.i===ACC?'▶':'🔑',label:'Аккаунт '+(x.i+1)+' · '+x.tier+' · осталось '+nf(x.left)})));
   return k==null?null:+k;
-}
-async function checkKeys(){
-  $('elKeys').textContent='Проверяю…';$('elKeys').classList.remove('warn');
-  try{const ks=await loadKeys();$('elKeys').innerHTML=ks.map(k=>'<div'+(k.ok?'':' class="warn"')+'>'+esc(keyLine(k))+'</div>').join('');}
-  catch(e){$('elKeys').textContent='Ошибка: '+e.message;$('elKeys').classList.add('warn');}
 }
 async function afterNewVoice(v){
   VOICES=null;voicesP=null;
+  const voice={id:v.id,name:v.name,about:'создан по описанию',key:v.key,pin:true};
   const items=S.speakers.map(s=>({k:s.id,icon:'<span class="dot" style="--c:'+esc(s.color)+';display:inline-block"></span>',label:s.name}));
   items.push({k:'-',icon:'○',label:'Строкам без говорящего'},{k:null,icon:'✕',label:'Пока никому'});
   const k=await sheet('Голос «'+v.name+'» сохранён. Кому назначить?',items);
-  if(k==='-')elS().def=v;else if(k){const s=spk(k);if(s)s.voice=v;}
+  if(k==='-')elS().def=voice;else if(k){const s=spk(k);if(s)s.voice=voice;}
   renderEl();renderLines();save();
 }
 const DS_TEXT='Guten Morgen! Heute ist ein schöner Tag. Ich trinke einen Kaffee, lese die Zeitung und dann fahre ich mit dem Fahrrad zur Arbeit. Und was machst du heute?';
@@ -1191,6 +1308,16 @@ async function design(){
     }
   });
   await P.done;
+}
+function panel(title,html){
+  let res;const done=new Promise(r=>res=r);
+  const sc=document.createElement('div');sc.className='scrim';
+  sc.innerHTML='<div class="sheet" role="dialog"><h3>'+esc(title)+'</h3><div class="pb">'+html+'</div></div>';
+  document.body.appendChild(sc);
+  const sh=sc.querySelector('.pb');
+  const close=v=>{if(!sc.isConnected)return;sc.remove();pvA.pause();res(v===undefined?null:v);};
+  sc.addEventListener('click',e=>{if(e.target===sc)close(null);});
+  return {sh,close,done};
 }
 
 /* ---------- export ---------- */
@@ -1407,7 +1534,7 @@ const GO={
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
   preview,export:doExport,saveProject,
-  ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,checkKeys,probe,
+  ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b&&GO[b.dataset.go]){e.preventDefault();GO[b.dataset.go]();}});
@@ -1418,7 +1545,7 @@ $('nav').addEventListener('click',e=>{
   document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+tab));
   if(tab!=='sync'&&syncOn){ed.pause();syncOn=false;}
-  if(tab==='audio')renderAudio();
+  if(tab==='audio'){renderAudio();if(!QUOTA)loadQuota();}
   if(tab==='sync'){if(syncPos===0)syncPos=firstUnmarked();renderSync();}
   if(tab==='done'){$('mainPlayer').pause();ed.pause();preview();}
   if(tab==='text')renderLines();
