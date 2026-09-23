@@ -149,6 +149,17 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 #tab-audio.isv3 .only-classic{display:none!important}
 #tab-audio:not(.isv3) .only-v3{display:none!important}
 #tab-audio.isv2 .only-cl-lang{display:none!important}
+.tbar{margin-bottom:10px}
+.views{margin-top:8px;gap:8px}
+.tgl{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;min-height:40px;font-weight:500}
+.tgl::before{content:"○ "}
+.tgl.on{background:var(--mark);border-color:var(--mark);color:#1E2A44}
+.tgl.on::before{content:"✓ "}
+body.nomk .card.cur{box-shadow:none}
+body.notr .card textarea.tr{display:none}
+.card .trb{display:flex;align-items:flex-start}
+.card .trb textarea{flex:1}
+.card .trb .ib{width:34px;height:34px;font-size:15px;color:var(--muted)}
 .vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:0}
 .vrow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
@@ -182,6 +193,13 @@ select.inp{appearance:auto}
   <!-- TEXT -->
   <section class="tab on" id="tab-text">
     <div class="spks" id="spks"></div>
+    <div class="tbar">
+      <div class="row" style="flex-wrap:nowrap">
+        <select class="inp" id="trLang" aria-label="Язык перевода" style="width:auto;flex:1;min-width:0"><option value="ru">Немецкий → русский</option><option value="uk">Немецкий → украинский</option></select>
+        <button class="btn" data-go="trAll" id="trAllBtn">Перевести все</button>
+      </div>
+      <div class="row views"><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
+    </div>
     <div id="lines"></div>
     <div class="row" style="margin-top:4px">
       <button class="btn" data-go="addLine">＋ Реплика</button>
@@ -259,6 +277,9 @@ select.inp{appearance:auto}
         <button class="btn" data-go="ttsRedo">Переозвучить всё</button>
       </div>
       <div class="hint" id="ttsProg"></div>
+      <div class="sub">Весь текст одним файлом</div>
+      <p class="hint">Если все реплики читает один голос: одна дорожка вместо клипов, интонация цельная, а строки размечаются по времени сами — по таймингам от ElevenLabs. Потом можно подправить во вкладке «Синхро».</p>
+      <button class="btn" data-go="ttsWhole" id="ttsWholeBtn">Озвучить одним файлом</button>
       <div class="row" style="margin-top:12px">
         <button class="btn" data-go="design">Создать голос по описанию</button>
       </div>
@@ -332,6 +353,7 @@ select.inp{appearance:auto}
       </div>
       <div class="hint" id="sizeInfo"></div>
     </div>
+    <div class="row views" style="margin-bottom:10px"><span class="hint" style="margin:0">В готовой странице по умолчанию:</span><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <strong>Как будет выглядеть</strong>
       <button class="btn" data-go="preview">Обновить</button>
@@ -369,6 +391,8 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 8%,transparent)}
 .ln.silent{cursor:default}
 body.notr .tr{display:none}
+body.nomk .ln.act .t{background-image:none}
+body.nomk .ln.act{background:none}
 body.hide .t{filter:blur(6px)}
 body.hide .ln.act .t{filter:blur(3px)}
 .pl{position:fixed;left:0;right:0;bottom:0;background:var(--bar);border-top:1px solid var(--line);padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
@@ -391,8 +415,9 @@ var D=JSON.parse(document.getElementById('d').textContent);
 var AU=JSON.parse(document.getElementById('au').textContent);
 var L=D.lines, SP={};
 (D.speakers||[]).forEach(function(s){SP[s.id]=s;});
-var KEY='ozv:'+(D.key||'x');
-var P={speed:1,loop:false,apause:false,hide:false,tr:true};
+var V=D.view||{};
+var KEY='ozv:'+(D.key||'x')+':'+(V.tr===false?0:1)+(V.marker===false?0:1);
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv)for(var k in P)if(k in sv)P[k]=sv[k];}catch(e){}
 function saveP(){try{localStorage.setItem(KEY,JSON.stringify(P));}catch(e){}}
 var main=new Audio(), clip=new Audio();
@@ -497,6 +522,8 @@ function ui(){
   $('o-hd').classList.toggle('on',P.hide);
   $('o-tr').classList.toggle('on',P.tr);
   $('o-tr').hidden=!anyTr;
+  $('o-mk').classList.toggle('on',P.mk);
+  document.body.classList.toggle('nomk',!P.mk);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
 }
@@ -564,6 +591,7 @@ $('o-lp').addEventListener('click',function(){P.loop=!P.loop;saveP();ui();});
 $('o-ap').addEventListener('click',function(){P.apause=!P.apause;saveP();ui();});
 $('o-hd').addEventListener('click',function(){P.hide=!P.hide;saveP();ui();});
 $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();ui();});
+$('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 if(!hasMain&&nextClip(0)<0)$('pl').hidden=true;
 ui();
 })();
@@ -582,7 +610,7 @@ const fmtS=t=>{if(!isFinite(t))t=0;const m=Math.floor(t/60),s=Math.floor(t%60);r
 const fmtMB=b=>(b/1048576).toFixed(b<10485760?1:0)+' МБ';
 
 /* ---------- state ---------- */
-const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null});
+const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true}});
 let S=blank();
 const A={}; // id -> {blob,url} | {remote}
 function srcOf(id){const a=A[id];if(!a)return null;return a.remote||a.url||null;}
@@ -718,7 +746,7 @@ function renderLines(){
       (head?'':'<button class="ib" data-act="play" aria-label="Прослушать">▶</button>')+
       '<button class="ib" data-act="more" aria-label="Действия">⋮</button></div>'+
       '<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea>'+
-      (!head&&(l.tr||l._showTr)?'<textarea class="tr" data-f="tr" rows="1" placeholder="Перевод">'+esc(l.tr)+'</textarea>':'')+
+      (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="Перевод ('+(S.trLang==='uk'?'укр.':'рус.')+')">'+esc(l.tr)+'</textarea></div>':'')+
       (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
       '</div>';
   }).join('');
@@ -727,7 +755,7 @@ function renderLines(){
 function autosize(t){t.style.height='auto';t.style.height=t.scrollHeight+'px';}
 $('lines').addEventListener('input',e=>{
   const t=e.target.closest('textarea[data-f]');if(!t)return;
-  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;autosize(t);save();
+  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';autosize(t);save();
 });
 $('lines').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
@@ -753,7 +781,7 @@ $('lines').addEventListener('click',async e=>{
       items.push({k:'tts',icon:'🗣',label:l.gen?'Переозвучить (ElevenLabs)':'Озвучить (ElevenLabs)'});
       items.push({k:'clipf',icon:'🎵',label:l.clip?'Заменить свой клип (файл)':'Свой клип (файл)'});
       items.push({k:'clipu',icon:'🔗',label:'Свой клип по ссылке'});
-      if(!l.tr&&!l._showTr)items.push({k:'tr',icon:'文',label:'Добавить перевод'});
+      items.push({k:'tr',icon:'文',label:(l.tr?'Перевести заново':'Перевести строку')+' ('+(S.trLang==='uk'?'укр.':'рус.')+')'});
       if(l.start!=null)items.push({k:'untime',icon:'⏱',label:'Стереть метку времени'});
     }else items.push({k:'col',icon:'●',label:'Цвет заголовка'});
     items.push({k:'type',icon:'↔',label:head?'Сделать репликой':'Сделать заголовком'});
@@ -765,7 +793,7 @@ $('lines').addEventListener('click',async e=>{
     if(k==='tts')ttsOne(i);
     if(k==='clipf'){const f=await pickFile('audio/*');if(f){l.clip=addBlob(f);l.gen=null;renderLines();save();}}
     if(k==='clipu'){const u=(prompt('Ссылка на MP3','')||'').trim();if(u){l.clip=await loadUrl(u);l.gen=null;renderLines();save();}}
-    if(k==='tr'){l._showTr=true;renderLines();const t=$('lines').querySelector('.card[data-i="'+i+'"] .tr');if(t)t.focus();}
+    if(k==='tr')trLines([i],true);
     if(k==='untime'){l.start=null;renderLines();save();}
     if(k==='col')pickColor(l.color,c=>{l.color=c;renderLines();save();});
     if(k==='type'){l.type=head?'line':'head';renderLines();save();}
@@ -797,7 +825,7 @@ function parseText(txt){
     let tr='';const bar=t.indexOf(' | ');if(bar>0){tr=t.slice(bar+3).trim();t=t.slice(0,bar).trim();}
     let sp=null;const m=t.match(NAME_RE);
     if(m){sp=spkByName(m[1].trim()).id;t=m[2].trim();}
-    out.push(newLine({spk:sp,text:t,tr}));
+    out.push(newLine({spk:sp,text:t,tr,trLang:tr?(S.trLang||'ru'):undefined}));
   });
   return out;
 }
@@ -1320,10 +1348,128 @@ function panel(title,html){
   return {sh,close,done};
 }
 
+
+/* ---------- вид: перевод и маркер ---------- */
+function viewS(){if(!S.view)S.view={tr:true,marker:true};return S.view;}
+function paintView(){
+  const v=viewS();
+  document.querySelectorAll('[data-view]').forEach(b=>{const on=!!v[b.dataset.view];b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+  document.body.classList.toggle('notr',!v.tr);
+  document.body.classList.toggle('nomk',!v.marker);
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-view]');if(!b)return;
+  const v=viewS();v[b.dataset.view]=!v[b.dataset.view];paintView();save();
+  if(!v.tr){} else $('lines').querySelectorAll('textarea.tr').forEach(autosize);
+  if(tab==='done')preview();
+});
+$('trLang').addEventListener('change',e=>{S.trLang=e.target.value;renderLines();save();});
+
+/* ---------- перевод (Gemini) ---------- */
+async function trApi(lines,context){
+  for(let t=0;t<2;t++){
+    let r;
+    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,to:S.trLang||'ru'})});}
+    catch(e){throw new Error('нет связи с сервером');}
+    let j={};try{j=await r.json();}catch(e){}
+    if(r.ok)return j.tr;
+    if(r.status===404&&!j.error)throw new Error('функция /api/translate не найдена');
+    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    throw new Error(j.error||('HTTP '+r.status));
+  }
+  throw new Error('неверный код доступа');
+}
+let trBusy=false;
+async function trLines(idx,quiet){
+  if(trBusy){toast('Перевод уже идёт…');return;}
+  idx=idx.filter(i=>S.lines[i]&&S.lines[i].type!=='head'&&S.lines[i].text.trim());
+  if(!idx.length){toast('Нечего переводить.');return;}
+  trBusy=true;const btn=$('trAllBtn');btn.disabled=true;
+  const lang=S.trLang||'ru';let done=0;
+  try{
+    for(let k=0;k<idx.length;k+=40){
+      const part=idx.slice(k,k+40);
+      btn.textContent='Перевожу '+Math.min(k+part.length,idx.length)+'/'+idx.length;
+      const ctx=S.lines.slice(Math.max(0,part[0]-6),part[0]).filter(l=>l.type!=='head').map(l=>l.text.trim()).filter(Boolean);
+      const out=await trApi(part.map(i=>S.lines[i].text.trim().replace(/\[[^\]]*\]\s*/g,'')),ctx);
+      part.forEach((i,n)=>{S.lines[i].tr=out[n]||'';S.lines[i].trLang=lang;});done+=part.length;
+      save();
+    }
+    if(!viewS().tr){viewS().tr=true;paintView();}
+    toast(idx.length===1?'Строка переведена':'Переведено строк: '+done);
+  }catch(e){toast('Перевод не удался: '+e.message+(done?' (готово '+done+')':''));}
+  trBusy=false;btn.disabled=false;btn.textContent='Перевести все';renderLines();
+}
+async function trAll(){
+  const lang=S.trLang||'ru';
+  const all=S.lines.map((l,i)=>i).filter(i=>S.lines[i].type!=='head'&&S.lines[i].text.trim());
+  const empty=all.filter(i=>!S.lines[i].tr||(S.lines[i].trLang&&S.lines[i].trLang!==lang));
+  if(!all.length){toast('Нет текста.');return;}
+  let pick=empty;
+  if(empty.length<all.length){
+    const k=await sheet('Перевод на '+(lang==='uk'?'украинский':'русский'),[
+      ...(empty.length?[{k:'empty',icon:'文',label:'Только без перевода ('+empty.length+')'}]:[]),
+      {k:'all',icon:'⟲',label:'Все строки заново ('+all.length+')'},{k:null,icon:'✕',label:'Отмена'}]);
+    if(!k)return;pick=k==='all'?all:empty;
+  }
+  trLines(pick);
+}
+
+/* ---------- весь текст одним файлом ---------- */
+async function audioDuration(blob){
+  try{const AC=window.AudioContext||window.webkitAudioContext;const ac=new AC();const b=await ac.decodeAudioData(await blob.arrayBuffer());ac.close&&ac.close();return b.duration;}
+  catch(e){return new Promise(res=>{const a=new Audio();a.preload='metadata';a.onloadedmetadata=()=>res(isFinite(a.duration)?a.duration:0);a.onerror=()=>res(0);a.src=URL.createObjectURL(blob);});}
+}
+let wholeBusy=false;
+async function ttsWhole(){
+  if(wholeBusy)return;
+  const idx=S.lines.map((l,i)=>i).filter(i=>S.lines[i].type!=='head'&&S.lines[i].text.trim());
+  if(!idx.length){toast('Нет текста для озвучки.');return;}
+  const vs=idx.map(i=>voiceFor(S.lines[i]));
+  if(vs.some(v=>!v)){toast('Выбери голос во вкладке «Аудио».');return;}
+  if(new Set(vs.map(v=>v.id)).size>1){toast('У говорящих разные голоса — одним файлом можно только одним голосом. Назначь всем один голос.');return;}
+  const v=vs[0],e=elS(),v3=e.model==='eleven_v3';
+  const pre=v3&&e.tags.trim()?e.tags.trim()+' ':'';
+  const texts=idx.map(i=>{let t=S.lines[i].text.trim();if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(t))t+='.';return t;});
+  // куски до ~2400 знаков по границам строк
+  const chunks=[];let cur=null;
+  idx.forEach((i,n)=>{const t=texts[n];if(!cur||cur.len+t.length+2>2400){cur={items:[],len:pre.length};chunks.push(cur);}cur.items.push({i,t});cur.len+=t.length+2;});
+  const total=chunks.reduce((a,c)=>a+c.len,0);
+  const genClips=S.lines.filter(l=>l.clip&&l.gen).length;
+  const k=await sheet('Озвучить весь текст одним файлом (~'+nf(total)+' символов'+(chunks.length>1?', частей: '+chunks.length:'')+')?',[
+    {k:'go',icon:'🗣',label:'Озвучить'+(genClips?' — клипы ElevenLabs у строк уберу':'')},{k:null,icon:'✕',label:'Отмена'}]);
+  if(k!=='go')return;
+  wholeBusy=true;const btn=$('ttsWholeBtn');btn.disabled=true;
+  try{
+    const blobs=[],starts={};let offset=0,prevText='';
+    for(let c=0;c<chunks.length;c++){
+      btn.textContent='Озвучиваю часть '+(c+1)+' из '+chunks.length+'…';
+      const ch=chunks[c];let text=pre;const pos=[];
+      ch.items.forEach((it,n)=>{if(n)text+='\n\n';pos.push(text.length);text+=it.t;});
+      const pin=v.pin!=null?!!v.pin:v.key!=null;
+      const req={a:'ttsts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
+      if(e.seedOn)req.seed=e.seed;
+      if(!v3&&prevText)req.prev=prevText.slice(-400);
+      const j=await api(req);
+      if(!pin&&Number.isInteger(j.key)&&j.key!==ACC){ACC=j.key;rememberAcc();}
+      const bin=atob(j.audio||'');const u8=new Uint8Array(bin.length);for(let q=0;q<bin.length;q++)u8[q]=bin.charCodeAt(q);
+      const blob=new Blob([u8],{type:'audio/mpeg'});blobs.push(blob);
+      const st=j.starts||[],scale=j.chars&&j.chars!==text.length?j.chars/text.length:1;
+      ch.items.forEach((it,n)=>{const ix=Math.min(st.length-1,Math.round(pos[n]*scale));const t=st[ix];starts[it.i]=isFinite(t)?Math.max(0,offset+t-0.05):null;});
+      offset+=await audioDuration(blob);prevText=ch.items.map(x=>x.t).join(' ');
+    }
+    const all=new Blob(blobs,{type:'audio/mpeg'});
+    S.main=addBlob(all);edSrcId=null;
+    S.lines.forEach((l,i)=>{if(l.type==='head')return;if(i in starts)l.start=starts[i]!=null?Math.round(starts[i]*100)/100:null;if(l.clip&&l.gen){l.clip=null;l.gen=null;}});
+    syncPos=firstUnmarked();renderLines();renderAudio();save();if(QUOTA)loadQuota();
+    toast('Готово: одна дорожка '+fmtS(offset)+', строки размечены');
+  }catch(err){toast('Не получилось: '+err.message);}
+  wholeBusy=false;btn.disabled=false;btn.textContent='Озвучить одним файлом';
+}
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
+    view:viewS(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
 }
 async function buildHTML(embed){
   const au={};
@@ -1336,7 +1482,7 @@ async function buildHTML(embed){
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
@@ -1533,7 +1679,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,
+  preview,export:doExport,saveProject,trAll,ttsWhole,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
@@ -1570,6 +1716,7 @@ $('fname').addEventListener('focus',e=>{if(!e.target.value)e.target.placeholder=
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNow();});
 
 function renderAll(){
+  paintView();$('trLang').value=S.trLang||'ru';
   $('title').value=S.title||'';$('subtitle').value=S.subtitle||'';$('fname').value=S.fname||'';
   renderSpeakers();renderLines();renderAudio();
   if(tab==='sync')renderSync();

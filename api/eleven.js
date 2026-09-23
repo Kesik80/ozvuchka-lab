@@ -81,8 +81,10 @@ module.exports = async function handler(req, res) {
         return send(res, 200, { voices, key: i });
       }
 
-      case 'tts': {
+      case 'tts':
+      case 'ttsts': {   // ttsts — весь текст одним файлом + тайминги символов
         const text = String(b.text || '').slice(0, 5000);
+        const ts = b.a === 'ttsts';
         if (!text.trim()) return send(res, 400, { error: 'Пустой текст', code: 'empty' });
         if (!/^[A-Za-z0-9]{15,40}$/.test(String(b.voice || ''))) return send(res, 400, { error: 'Неверный голос', code: 'voice' });
         const MODELS = ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5'];
@@ -107,7 +109,13 @@ module.exports = async function handler(req, res) {
         const order = b.pin ? [start] : K.map((_, n) => (start + n) % K.length);
         let last = null;
         for (const i of order) {
-          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + '?output_format=mp3_44100_64', { method: 'POST', body });
+          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + (ts ? '/with-timestamps' : '') + '?output_format=mp3_44100_64', { method: 'POST', body });
+          if (r.ok && ts) {
+            const j = await r.json();
+            const al = j.alignment || j.normalized_alignment || {};
+            return send(res, 200, { audio: j.audio_base_64 || j.audio_base64, starts: al.character_start_times_seconds || [],
+              chars: (al.characters || []).length, key: i });
+          }
           if (r.ok) {
             const buf = Buffer.from(await r.arrayBuffer());
             res.setHeader('Content-Type', 'audio/mpeg');
