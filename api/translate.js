@@ -1,6 +1,6 @@
 // ОЗВУЧКА — перевод строк через Gemini (бесплатный тариф).
 // ENV: GEMINI_API_KEY (или GOOGLE_API_KEY, или GEMINI_API_KEYS через запятую)
-//      GEMINI_MODEL   — необязательно, по умолчанию gemini-2.5-flash
+//      MODEL_TEXT     — модель перевода, по умолчанию gemini-3.5-flash-lite (как в tlumach)
 //      OZV_PASSWORD   — тот же код доступа, что у озвучки (если задан)
 const LANGS = { ru: 'Russian', uk: 'Ukrainian' };
 
@@ -12,10 +12,12 @@ function keys() {
   return out;
 }
 
-async function ask(key, model, prompt) {
-  const cfg = { temperature: 0.2, responseMimeType: 'application/json',
-    responseSchema: { type: 'ARRAY', items: { type: 'STRING' } } };
-  if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
+async function ask(key, model, prompt, simple) {
+  const cfg = { temperature: 0.2, responseMimeType: 'application/json' };
+  if (!simple) {
+    cfg.responseSchema = { type: 'ARRAY', items: { type: 'STRING' } };
+    if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
+  }
   const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
@@ -29,7 +31,20 @@ async function ask(key, model, prompt) {
   }
   const j = JSON.parse(txt);
   const out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
-  return JSON.parse(out.map(p => p.text || '').join('') || '[]');
+  let body = out.map(p => p.text || '').join('').trim();
+  if (body[0] !== '[') { const a2 = body.indexOf('['), b2 = body.lastIndexOf(']'); if (a2 >= 0 && b2 > a2) body = body.slice(a2, b2 + 1); }
+  return JSON.parse(body || '[]');
+}
+
+// какие модели вообще доступны этому ключу
+async function listModels(key) {
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+  if (!r.ok) return [];
+  const j = await r.json();
+  return (j.models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => String(m.name || '').replace(/^models\//, ''))
+    .filter(n => /flash|pro/.test(n) && !/vision|image|audio|tts|embedding|live|thinking/.test(n));
 }
 
 module.exports = async function handler(req, res) {
@@ -56,33 +71,47 @@ module.exports = async function handler(req, res) {
     (context.length ? 'Earlier lines of the same text, for context only (do not translate): ' + JSON.stringify(context) + '\n' : '') +
     'Lines: ' + JSON.stringify(lines);
 
-  const models = [process.env.GEMINI_MODEL || 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
+  const first = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+    .filter((m, i, a2) => m && a2.indexOf(m) === i);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const tried = [];
   let last = null;
   for (const key of K) {
-    let keyDead = false;
-    for (const model of models) {
-      for (let att = 0; att < 3 && !keyDead; att++) {
+    const models = first.slice();
+    let discovered = false, keyDead = false;
+    for (let mi = 0; mi < models.length && !keyDead; mi++) {
+      const model = models[mi];
+      let simple = false;
+      for (let att = 0; att < 3; att++) {
         try {
-          const out = await ask(key, model, prompt);
+          const out = await ask(key, model, prompt, simple);
           if (!Array.isArray(out) || out.length !== lines.length) {
             last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' строк вместо ' + lines.length);
-            break;                                   // формат не тот — пробуем другую модель
+            tried.push(model + ' → формат');
+            break;
           }
-          return res.status(200).json({ tr: out.map(x => String(x || '').trim()), model });
+          return res.status(200).json({ tr: out.map(x => String(x || '').trim()), model, tried });
         } catch (e) {
           last = e;
-          if (e.status === 404) break;               // такой модели нет
-          if (e.status === 429 || e.status >= 500) { await sleep(700 * (att + 1)); continue; }  // перегруз — ещё попытка
-          keyDead = true;                            // ключ не работает — следующий ключ
+          tried.push(model + ' → ' + (e.status || '?') + ' ' + String(e.message).slice(0, 70));
+          if (e.status === 400 && !simple) { simple = true; continue; }        // не понимает схему/бюджет мыслей
+          if (e.status === 404) break;                                          // такой модели нет
+          if (e.status === 429 || e.status >= 500) { await sleep(700 * (att + 1)); continue; }
+          if (e.status === 401 || e.status === 403) keyDead = true;             // ключ не работает
+          break;
         }
       }
-      if (keyDead) break;
+      // первые три не сработали — спрашиваем у Gemini, что вообще доступно этому ключу
+      if (!keyDead && !discovered && mi === models.length - 1) {
+        discovered = true;
+        try { (await listModels(key)).forEach(n => { if (!models.includes(n) && models.length < first.length + 4) models.push(n); }); }
+        catch (e) {}
+      }
     }
   }
   const raw = last ? last.message : 'Нет ответа';
   const msg = /high demand|overloaded|unavailable/i.test(raw) ? 'Gemini сейчас перегружен — попробуй ещё раз через минуту'
     : /quota|rate limit|resource_exhausted/i.test(raw) ? 'Дневной лимит Gemini исчерпан'
     : /api key|permission|unauthenticated/i.test(raw) ? 'Ключ Gemini не работает: ' + raw : raw;
-  return res.status(502).json({ error: msg, raw });
+  return res.status(502).json({ error: msg, raw, tried });
 };
