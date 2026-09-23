@@ -160,6 +160,12 @@ body.notr .card textarea.tr{display:none}
 .card .trb{display:flex;align-items:flex-start}
 .card .trb textarea{flex:1}
 .card .trb .ib{width:34px;height:34px;font-size:15px;color:var(--muted)}
+.lt{margin-top:6px;border-top:1px dashed var(--line);padding-top:6px}
+.lt .i{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding:4px 0}
+.lt .w{color:var(--danger);font-weight:700;text-decoration:underline wavy}
+.lt .m{color:var(--muted);flex-basis:100%;font-size:12px}
+.lt .rep{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 12px;min-height:34px;font-size:13px}
+.lt .skip{border:0;background:transparent;color:var(--muted);min-height:34px;padding:6px 8px}
 .vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:0}
 .vrow b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
@@ -197,6 +203,7 @@ select.inp{appearance:auto}
       <div class="row" style="flex-wrap:nowrap">
         <select class="inp" id="trLang" aria-label="Язык перевода" style="width:auto;flex:1;min-width:0"><option value="ru">Немецкий → русский</option><option value="uk">Немецкий → украинский</option></select>
         <button class="btn" data-go="trAll" id="trAllBtn">Перевести все</button>
+        <button class="btn" data-go="ltAll" id="ltBtn">Ошибки</button>
       </div>
       <div class="row views"><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
     </div>
@@ -747,6 +754,7 @@ function renderLines(){
       '<button class="ib" data-act="more" aria-label="Действия">⋮</button></div>'+
       '<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea>'+
       (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="Перевод ('+(S.trLang==='uk'?'укр.':'рус.')+')">'+esc(l.tr)+'</textarea></div>':'')+
+      (LT[l.id]&&LT[l.id].length?'<div class="lt">'+LT[l.id].map((m,n)=>'<div class="i"><span class="w">'+esc(l.text.substr(m.o,m.l)||'—')+'</span>'+(m.llm?'<span class="m" style="flex-basis:auto">✨</span>':'')+m.reps.map(r=>'<button class="rep" data-act="ltfix" data-n="'+n+'" data-r="'+esc(r)+'">'+esc(r)+'</button>').join('')+'<button class="skip" data-act="ltskip" data-n="'+n+'">пропустить</button><span class="m">'+esc(m.why||m.msg||m.full)+'</span></div>').join('')+'</div>':'')+
       (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
       '</div>';
   }).join('');
@@ -755,7 +763,7 @@ function renderLines(){
 function autosize(t){t.style.height='auto';t.style.height=t.scrollHeight+'px';}
 $('lines').addEventListener('input',e=>{
   const t=e.target.closest('textarea[data-f]');if(!t)return;
-  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';autosize(t);save();
+  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';else if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}autosize(t);save();
 });
 $('lines').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
@@ -765,6 +773,8 @@ $('lines').addEventListener('click',async e=>{
   if(act==='nudge'){l.start=Math.max(0,Math.round((l.start+ +b.dataset.d)*100)/100);renderLines();save();edPlay(i);return;}
   if(act==='clipx'){l.clip=null;l.gen=null;renderLines();save();return;}
   if(act==='retts'){ttsOne(i);return;}
+  if(act==='ltfix'){ltFix(i,+b.dataset.n,b.dataset.r);return;}
+  if(act==='ltskip'){ltSkip(i,+b.dataset.n);return;}
   if(act==='spk'){
     const items=S.speakers.map(s=>({k:s.id,icon:'<span class="dot" style="--c:'+esc(s.color)+';display:inline-block"></span>',label:s.name}));
     items.push({k:'-',icon:'○',label:'Без говорящего'},{k:'+',icon:'＋',label:'Новый говорящий'});
@@ -781,6 +791,7 @@ $('lines').addEventListener('click',async e=>{
       items.push({k:'tts',icon:'🗣',label:l.gen?'Переозвучить (ElevenLabs)':'Озвучить (ElevenLabs)'});
       items.push({k:'clipf',icon:'🎵',label:l.clip?'Заменить свой клип (файл)':'Свой клип (файл)'});
       items.push({k:'clipu',icon:'🔗',label:'Свой клип по ссылке'});
+      items.push({k:'lt',icon:'✓',label:'Проверить орфографию'});
       items.push({k:'tr',icon:'文',label:(l.tr?'Перевести заново':'Перевести строку')+' ('+(S.trLang==='uk'?'укр.':'рус.')+')'});
       if(l.start!=null)items.push({k:'untime',icon:'⏱',label:'Стереть метку времени'});
     }else items.push({k:'col',icon:'●',label:'Цвет заголовка'});
@@ -794,6 +805,7 @@ $('lines').addEventListener('click',async e=>{
     if(k==='clipf'){const f=await pickFile('audio/*');if(f){l.clip=addBlob(f);l.gen=null;renderLines();save();}}
     if(k==='clipu'){const u=(prompt('Ссылка на MP3','')||'').trim();if(u){l.clip=await loadUrl(u);l.gen=null;renderLines();save();}}
     if(k==='tr')trLines([i],true);
+    if(k==='lt')ltLines([i]);
     if(k==='untime'){l.start=null;renderLines();save();}
     if(k==='col')pickColor(l.color,c=>{l.color=c;renderLines();save();});
     if(k==='type'){l.type=head?'line':'head';renderLines();save();}
@@ -1372,9 +1384,10 @@ async function trApi(lines,context){
     try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,to:S.trLang||'ru'})});}
     catch(e){throw new Error('нет связи с сервером');}
     let j={};try{j=await r.json();}catch(e){}
-    if(r.ok)return j.tr;
+    if(r.ok){console.log('перевод: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.tr;}
     if(r.status===404&&!j.error)throw new Error('функция /api/translate не найдена');
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    if(j.tried)console.warn('перевод не вышел: '+j.tried.join(' | '));
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
@@ -1471,6 +1484,85 @@ async function ttsWhole(){
   }catch(err){toast('Не получилось: '+err.message);}
   wholeBusy=false;btn.disabled=false;btn.textContent='Озвучить одним файлом';
 }
+
+/* ---------- проверка орфографии (LanguageTool) ---------- */
+const LT={};        // id строки -> найденные ошибки
+const LT_SKIP={};   // id строки -> пропущенные (текст+правило)
+const ltKey=(t,m)=>m.id+'|'+t.substr(m.o,m.l);
+async function ltApi(text,lang){
+  for(let t=0;t<2;t++){
+    let r;
+    try{r=await fetch('/api/lt',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({text,lang:lang||'de'})});}
+    catch(e){throw new Error('нет связи с сервером');}
+    let j={};try{j=await r.json();}catch(e){}
+    if(r.ok)return j;
+    if(r.status===404&&!j.error)throw new Error('функция /api/lt не найдена');
+    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    throw new Error(j.error||('HTTP '+r.status));
+  }
+  throw new Error('неверный код доступа');
+}
+let ltBusy=false;
+async function ltLines(idx){
+  if(ltBusy){toast('Проверка уже идёт…');return;}
+  idx=idx.filter(i=>S.lines[i]&&S.lines[i].text.trim());
+  if(!idx.length){toast('Нечего проверять.');return;}
+  ltBusy=true;const btn=$('ltBtn');btn.disabled=true;btn.textContent='Проверяю…';
+  let found=0,warn='';
+  try{
+    for(let k=0;k<idx.length;){
+      const part=[],pos=[];let text='';
+      while(k<idx.length){
+        const t=S.lines[idx[k]].text.trim();
+        if(text&&text.length+t.length+2>15000)break;
+        if(text)text+='\n\n';
+        pos.push(text.length);part.push(idx[k]);text+=t;k++;
+      }
+      const j=await ltApi(text,'de');
+      if(j.ltFailed)warn='LanguageTool не ответил ('+j.ltFailed+'), замечания только от Gemini';
+      else if(j.llmFailed)warn='Без объяснений: Gemini не ответил ('+j.llmFailed+')';
+      const fp=new Set(j.fp||[]),why=j.why||{},ms=j.matches||[];
+      part.forEach((li,n)=>{
+        const l=S.lines[li],lead=l.text.length-l.text.trimStart().length;
+        const start=pos[n],end=start+l.text.trim().length,lineTxt=l.text.trim();
+        const skip=LT_SKIP[l.id]||{},items=[];
+        ms.forEach((m,gi)=>{
+          if(fp.has(gi)||m.o<start||m.o+m.l>end)return;
+          items.push(Object.assign({},m,{o:m.o-start+lead,why:why[gi]||''}));
+        });
+        (j.extra||[]).forEach(x=>{
+          const q=lineTxt.indexOf(x.quote);if(q<0)return;
+          const o=q+lead;
+          if(items.some(m=>o<m.o+m.l&&o+x.quote.length>m.o))return;
+          items.push({o,l:x.quote.length,reps:x.fix&&x.fix!==x.quote?[x.fix]:[],msg:x.why||'',why:x.why||'',id:'llm',llm:true});
+        });
+        LT[l.id]=items.filter(m=>!skip[ltKey(l.text,m)]).sort((a,b)=>a.o-b.o);
+        found+=LT[l.id].length;
+      });
+      ltPaint();renderLines();
+    }
+    toast(found?'Найдено замечаний: '+found+(warn?' · '+warn:''):(warn||'Ошибок не нашлось'));
+  }catch(e){toast('Проверка не удалась: '+e.message);}
+  ltBusy=false;btn.disabled=false;ltPaint();renderLines();
+}
+function ltPaint(){
+  const n=S.lines.reduce((a,l)=>a+((LT[l.id]||[]).length),0);
+  $('ltBtn').textContent=n?'Ошибки: '+n:'Ошибки';
+}
+function ltFix(i,n,rep){
+  const l=S.lines[i],m=(LT[l.id]||[])[n];if(!m)return;
+  l.text=l.text.slice(0,m.o)+rep+l.text.slice(m.o+m.l);
+  const d=rep.length-m.l;
+  LT[l.id]=LT[l.id].filter((x,k)=>k!==n).map(x=>x.o>m.o?Object.assign({},x,{o:x.o+d}):x);
+  renderLines();ltPaint();save();
+}
+function ltSkip(i,n){
+  const l=S.lines[i],m=(LT[l.id]||[])[n];if(!m)return;
+  (LT_SKIP[l.id]=LT_SKIP[l.id]||{})[ltKey(l.text,m)]=1;
+  LT[l.id]=LT[l.id].filter((x,k)=>k!==n);
+  renderLines();ltPaint();
+}
+function ltAll(){ltLines(S.lines.map((l,i)=>i));}
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
@@ -1684,7 +1776,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,trAll,ttsWhole,
+  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
