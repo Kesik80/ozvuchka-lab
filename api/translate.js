@@ -56,20 +56,33 @@ module.exports = async function handler(req, res) {
     (context.length ? 'Earlier lines of the same text, for context only (do not translate): ' + JSON.stringify(context) + '\n' : '') +
     'Lines: ' + JSON.stringify(lines);
 
-  const models = [process.env.GEMINI_MODEL || 'gemini-2.5-flash', 'gemini-flash-latest'];
+  const models = [process.env.GEMINI_MODEL || 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   let last = null;
   for (const key of K) {
+    let keyDead = false;
     for (const model of models) {
-      try {
-        const out = await ask(key, model, prompt);
-        if (!Array.isArray(out) || out.length !== lines.length) { last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' строк вместо ' + lines.length); continue; }
-        return res.status(200).json({ tr: out.map(x => String(x || '').trim()), model });
-      } catch (e) {
-        last = e;
-        if (e.status === 404) continue;          // модели нет — пробуем запасную
-        break;                                   // лимит/ключ — следующий ключ
+      for (let att = 0; att < 3 && !keyDead; att++) {
+        try {
+          const out = await ask(key, model, prompt);
+          if (!Array.isArray(out) || out.length !== lines.length) {
+            last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' строк вместо ' + lines.length);
+            break;                                   // формат не тот — пробуем другую модель
+          }
+          return res.status(200).json({ tr: out.map(x => String(x || '').trim()), model });
+        } catch (e) {
+          last = e;
+          if (e.status === 404) break;               // такой модели нет
+          if (e.status === 429 || e.status >= 500) { await sleep(700 * (att + 1)); continue; }  // перегруз — ещё попытка
+          keyDead = true;                            // ключ не работает — следующий ключ
+        }
       }
+      if (keyDead) break;
     }
   }
-  return res.status(502).json({ error: last ? last.message : 'Нет ответа' });
+  const raw = last ? last.message : 'Нет ответа';
+  const msg = /high demand|overloaded|unavailable/i.test(raw) ? 'Gemini сейчас перегружен — попробуй ещё раз через минуту'
+    : /quota|rate limit|resource_exhausted/i.test(raw) ? 'Дневной лимит Gemini исчерпан'
+    : /api key|permission|unauthenticated/i.test(raw) ? 'Ключ Gemini не работает: ' + raw : raw;
+  return res.status(502).json({ error: msg, raw });
 };

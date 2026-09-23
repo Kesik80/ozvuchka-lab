@@ -1397,7 +1397,12 @@ async function trLines(idx,quiet){
     }
     if(!viewS().tr){viewS().tr=true;paintView();}
     toast(idx.length===1?'Строка переведена':'Переведено строк: '+done);
-  }catch(e){toast('Перевод не удался: '+e.message+(done?' (готово '+done+')':''));}
+  }catch(e){
+    const rest=idx.slice(done);
+    trBusy=false;btn.disabled=false;btn.textContent='Перевести все';renderLines();
+    toast('Перевод не удался: '+e.message+(done?' (готово '+done+')':''),rest.length?'Ещё раз':null,()=>trLines(rest,quiet));
+    return;
+  }
   trBusy=false;btn.disabled=false;btn.textContent='Перевести все';renderLines();
 }
 async function trAll(){
