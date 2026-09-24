@@ -160,6 +160,9 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 .tbar .sep{flex-basis:100%;height:0}
 .mini{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;min-height:40px;font-size:14px;font-weight:500}
 select.mini{appearance:auto;color:var(--ink)}
+.btn.ico{display:inline-flex;align-items:center;gap:8px;padding:8px 12px}
+.btn.ico .ic{width:24px;height:22px;flex:none;display:block}
+.btn.ico span:empty{display:none}
 .tbar .tgl{padding:8px 12px;min-height:40px;font-size:14px}
 .views{margin-top:8px;gap:8px}
 .tgl{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;min-height:40px;font-weight:500}
@@ -212,7 +215,7 @@ select.inp{appearance:auto}
     <div class="spks" id="spks"></div>
     <div class="tbar">
       <select class="mini" id="trLang" aria-label="Язык перевода"><option value="ru">DE → RU</option><option value="uk">DE → UA</option></select>
-      <button class="btn mini" data-go="trAll" id="trAllBtn">文 Перевести</button>
+      <button class="btn mini ico" data-go="trAll" id="trAllBtn" aria-label="Перевести все строки" title="Перевести все строки"><svg class="ic" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 512 448.012"><path fill="#424C57" fill-rule="nonzero" d="M386.912 404.082c-31.653 27.804-68.134 42.5-104.037 43.83-37.327 1.383-73.956-11.673-103.851-39.445l-15.148-14.072-54.139-44.075h-48.07c-25.406 0-43.633-20.936-46.214-46.212L.195 154.71c-2.581-25.279 20.879-48.258 46.214-46.215l189.276 15.258c25.335 2.042 46.214 20.793 46.214 46.215v134.14c0 25.418-20.805 46.212-46.214 46.212h-59.323l4.221 47.53 4.398 2.497c33.226 18.862 65.806 26.928 96.721 22.849 28.258-3.73 55.317-17.66 80.412-42.828l-15.449-13.603 64.278-14.309-7.532 67.307-16.499-15.681z"/><path fill="#337EC6" d="M276.315 73.91l113.118-9.119-30.176-17.127c-33.228-18.859-65.809-26.927-96.721-22.848-28.26 3.73-55.319 17.66-80.414 42.827l15.449 13.604-64.277 14.309 7.533-67.307 16.498 15.682C188.979 16.128 225.46 1.43 261.363.099c37.327-1.382 73.956 11.673 103.851 39.446l26.942 25.027 73.434-5.92c25.335-2.042 48.796 20.936 46.215 46.216l-15.258 149.397c-2.581 25.277-20.808 46.212-46.215 46.212h-50.099l-71.815 58.466 5.19-58.466h-57.293c-25.411 0-46.216-20.793-46.216-46.212V120.126c0-25.422 20.881-44.173 46.216-46.216z"/><path fill="#fff" d="M84.246 173.714h43.841v-12.353h19.585v12.353h44.001v20.281h-9.033c-1.629 12.811-5.21 23.368-11.297 34.746-5.149 9.611-11.796 18.87-19.516 27.744 12.32 14.735 27.616 27.554 45.826 39.24l-10.073 15.701c-19.119-12.267-35.356-25.774-48.699-41.332-11.936 11.547-25.496 22.303-39.7 32.127l-10.588-15.325c14.055-9.725 27.407-20.347 38.896-31.672-10.588-15.493-18.697-32.88-24.308-52.875l17.968-5.038c4.601 16.401 11.052 30.837 19.344 43.759 5.657-6.848 10.548-13.876 14.412-21.092 4.74-8.866 7.286-16.196 8.89-25.983H84.246v-20.281zM398.456 215.314h-55.931l-7.357 25.09h-27.814c11.988-31.729 25.831-69.829 37.825-101.573 4.318-11.466 9.234-30.467 24.943-30.467 16.284 0 21.691 17.409 26.222 29.436l38.4 103.122h-28.708l-7.58-25.608zm-6-24.398l-21.893-57.703-21.971 57.703h43.864z"/></svg><span id="trProg"></span></button>
       <span class="sep"></span>
       <button class="btn mini" data-go="ltAll" id="ltBtn">✓ Ошибки</button>
       <button class="tgl" id="ltAuto" data-go="ltAutoTgl">Авто</button>
@@ -1427,7 +1430,7 @@ async function trLines(idx,quiet){
   try{
     for(let k=0;k<idx.length;k+=40){
       const part=idx.slice(k,k+40);
-      btn.textContent='Перевожу '+Math.min(k+part.length,idx.length)+'/'+idx.length;
+      $('trProg').textContent=Math.min(k+part.length,idx.length)+'/'+idx.length;
       const ctx=S.lines.slice(Math.max(0,part[0]-6),part[0]).filter(l=>l.type!=='head').map(l=>l.text.trim()).filter(Boolean);
       const out=await trApi(part.map(i=>S.lines[i].text.trim().replace(/\[[^\]]*\]\s*/g,'')),ctx);
       part.forEach((i,n)=>{S.lines[i].tr=out[n]||'';S.lines[i].trLang=lang;});done+=part.length;
@@ -1437,11 +1440,11 @@ async function trLines(idx,quiet){
     toast(idx.length===1?'Строка переведена':'Переведено строк: '+done);
   }catch(e){
     const rest=idx.slice(done);
-    trBusy=false;btn.disabled=false;btn.textContent='Перевести все';renderLines();
+    trBusy=false;btn.disabled=false;$('trProg').textContent='';renderLines();
     toast('Перевод не удался: '+e.message+(done?' (готово '+done+')':''),rest.length?'Ещё раз':null,()=>trLines(rest,quiet));
     return;
   }
-  trBusy=false;btn.disabled=false;btn.textContent='Перевести все';renderLines();
+  trBusy=false;btn.disabled=false;$('trProg').textContent='';renderLines();
 }
 async function trAll(){
   const lang=S.trLang||'ru';
