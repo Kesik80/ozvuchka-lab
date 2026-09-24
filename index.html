@@ -156,6 +156,11 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 #tab-audio:not(.isv3) .only-v3{display:none!important}
 #tab-audio.isv2 .only-cl-lang{display:none!important}
 .tbar{margin-bottom:10px}
+.tbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.tbar .sep{flex-basis:100%;height:0}
+.mini{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;min-height:40px;font-size:14px;font-weight:500}
+select.mini{appearance:auto;color:var(--ink)}
+.tbar .tgl{padding:8px 12px;min-height:40px;font-size:14px}
 .views{margin-top:8px;gap:8px}
 .tgl{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;min-height:40px;font-weight:500}
 .tgl::before{content:"○ "}
@@ -206,13 +211,14 @@ select.inp{appearance:auto}
   <section class="tab on" id="tab-text">
     <div class="spks" id="spks"></div>
     <div class="tbar">
-      <div class="row" style="flex-wrap:nowrap">
-        <select class="inp" id="trLang" aria-label="Язык перевода" style="width:auto;flex:1;min-width:0"><option value="ru">Немецкий → русский</option><option value="uk">Немецкий → украинский</option></select>
-        <button class="btn" data-go="trAll" id="trAllBtn">Перевести все</button>
-        <button class="btn" data-go="ltAll" id="ltBtn">Ошибки</button>
-        <button class="tgl" id="ltAuto" data-go="ltAutoTgl">Авто</button>
-      </div>
-      <div class="row views"><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
+      <select class="mini" id="trLang" aria-label="Язык перевода"><option value="ru">DE → RU</option><option value="uk">DE → UA</option></select>
+      <button class="btn mini" data-go="trAll" id="trAllBtn">文 Перевести</button>
+      <span class="sep"></span>
+      <button class="btn mini" data-go="ltAll" id="ltBtn">✓ Ошибки</button>
+      <button class="tgl" id="ltAuto" data-go="ltAutoTgl">Авто</button>
+      <span class="sep"></span>
+      <button class="tgl" data-view="tr">Перевод</button>
+      <button class="tgl" data-view="marker">Маркер</button>
     </div>
     <div id="lines"></div>
     <div class="row" style="margin-top:4px">
