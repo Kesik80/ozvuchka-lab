@@ -77,7 +77,13 @@ audio{width:100%;margin-top:8px}
 .card textarea.txt{font:17px/1.5 var(--read)}
 .card.head textarea.txt{font:600 14px/1.4 var(--ui);letter-spacing:.04em;color:var(--c,var(--ink))}
 .card textarea.tr{font-size:14px;color:var(--muted);border-top:1px dashed var(--line);margin-top:2px}
-.card textarea:focus{background:var(--paper);border-radius:6px}
+.card textarea:focus{border-radius:6px;outline:1px dashed var(--line);outline-offset:1px}
+.ta{position:relative}
+.ta .hl{position:absolute;left:0;top:0;right:0;bottom:0;padding:4px 2px;font:17px/1.5 var(--read);white-space:pre-wrap;overflow-wrap:break-word;color:transparent;pointer-events:none;overflow:hidden;border:0}
+.card.head .ta .hl{font:600 14px/1.4 var(--ui);letter-spacing:.04em}
+.ta .hl u{text-decoration:underline wavy var(--danger);text-decoration-skip-ink:none;text-underline-offset:3px}
+.ta .hl u.llm{text-decoration-color:var(--accent)}
+.ta textarea{position:relative;background:transparent}
 .clipbar{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:4px}
 .clipbar .x{border:0;background:transparent;color:var(--danger);font-size:13px;padding:4px}
 .card.cur{box-shadow:0 0 0 2px var(--mark)}
@@ -204,6 +210,7 @@ select.inp{appearance:auto}
         <select class="inp" id="trLang" aria-label="Язык перевода" style="width:auto;flex:1;min-width:0"><option value="ru">Немецкий → русский</option><option value="uk">Немецкий → украинский</option></select>
         <button class="btn" data-go="trAll" id="trAllBtn">Перевести все</button>
         <button class="btn" data-go="ltAll" id="ltBtn">Ошибки</button>
+        <button class="tgl" id="ltAuto" data-go="ltAutoTgl">Авто</button>
       </div>
       <div class="row views"><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
     </div>
@@ -617,7 +624,7 @@ const fmtS=t=>{if(!isFinite(t))t=0;const m=Math.floor(t/60),s=Math.floor(t%60);r
 const fmtMB=b=>(b/1048576).toFixed(b<10485760?1:0)+' МБ';
 
 /* ---------- state ---------- */
-const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true}});
+const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true},ltAuto:true});
 let S=blank();
 const A={}; // id -> {blob,url} | {remote}
 function srcOf(id){const a=A[id];if(!a)return null;return a.remote||a.url||null;}
@@ -752,7 +759,7 @@ function renderLines(){
       (head?'<span style="margin-left:auto"></span>':'')+
       (head?'':'<button class="ib" data-act="play" aria-label="Прослушать">▶</button>')+
       '<button class="ib" data-act="more" aria-label="Действия">⋮</button></div>'+
-      '<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea>'+
+      '<div class="ta">'+hlHTML(l)+'<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea></div>'+
       (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="Перевод ('+(S.trLang==='uk'?'укр.':'рус.')+')">'+esc(l.tr)+'</textarea></div>':'')+
       (LT[l.id]&&LT[l.id].length?'<div class="lt">'+LT[l.id].map((m,n)=>'<div class="i"><span class="w">'+esc(l.text.substr(m.o,m.l)||'—')+'</span>'+(m.llm?'<span class="m" style="flex-basis:auto">✨</span>':'')+m.reps.map(r=>'<button class="rep" data-act="ltfix" data-n="'+n+'" data-r="'+esc(r)+'">'+esc(r)+'</button>').join('')+'<button class="skip" data-act="ltskip" data-n="'+n+'">пропустить</button><span class="m">'+esc(m.why||m.msg||m.full)+'</span></div>').join('')+'</div>':'')+
       (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
@@ -760,10 +767,22 @@ function renderLines(){
   }).join('');
   box.querySelectorAll('textarea').forEach(autosize);
 }
+function hlHTML(l){
+  const ms=(LT[l.id]||[]).slice().sort((a,b)=>a.o-b.o);
+  if(!ms.length)return '';
+  let out='',pos=0;
+  ms.forEach(m=>{
+    if(m.o<pos||m.o+m.l>l.text.length)return;
+    out+=esc(l.text.slice(pos,m.o))+'<u'+(m.llm?' class="llm"':'')+'>'+esc(l.text.substr(m.o,m.l))+'</u>';
+    pos=m.o+m.l;
+  });
+  out+=esc(l.text.slice(pos))+'\n';
+  return '<div class="hl" aria-hidden="true">'+out+'</div>';
+}
 function autosize(t){t.style.height='auto';t.style.height=t.scrollHeight+'px';}
 $('lines').addEventListener('input',e=>{
   const t=e.target.closest('textarea[data-f]');if(!t)return;
-  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';else if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}autosize(t);save();
+  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';else{if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}ltSchedule();}autosize(t);save();
 });
 $('lines').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
@@ -851,7 +870,7 @@ async function bulk(){
   const place=await askPlace();if(!place)return;
   const lines=parseText(v);
   if(place==='replace')S.lines=lines;else S.lines.push(...lines);
-  renderSpeakers();renderLines();save();toast('Добавлено строк: '+lines.length);
+  renderSpeakers();renderLines();save();ltSchedule(1200);toast('Добавлено строк: '+lines.length);
 }
 
 /* ---------- editor playback ---------- */
@@ -1503,7 +1522,7 @@ async function ltApi(text,lang){
   throw new Error('неверный код доступа');
 }
 let ltBusy=false;
-async function ltLines(idx){
+async function ltLines(idx,quiet){
   if(ltBusy){toast('Проверка уже идёт…');return;}
   idx=idx.filter(i=>S.lines[i]&&S.lines[i].text.trim());
   if(!idx.length){toast('Нечего проверять.');return;}
@@ -1537,12 +1556,14 @@ async function ltLines(idx){
           items.push({o,l:x.quote.length,reps:x.fix&&x.fix!==x.quote?[x.fix]:[],msg:x.why||'',why:x.why||'',id:'llm',llm:true});
         });
         LT[l.id]=items.filter(m=>!skip[ltKey(l.text,m)]).sort((a,b)=>a.o-b.o);
+        LT_TXT[l.id]=l.text;
         found+=LT[l.id].length;
       });
       ltPaint();renderLines();
     }
-    toast(found?'Найдено замечаний: '+found+(warn?' · '+warn:''):(warn||'Ошибок не нашлось'));
-  }catch(e){toast('Проверка не удалась: '+e.message);}
+    if(!quiet)toast(found?'Найдено замечаний: '+found+(warn?' · '+warn:''):(warn||'Ошибок не нашлось'));
+    else if(warn)console.warn('проверка: '+warn);
+  }catch(e){if(quiet)console.warn('проверка не удалась: '+e.message);else toast('Проверка не удалась: '+e.message);}
   ltBusy=false;btn.disabled=false;ltPaint();renderLines();
 }
 function ltPaint(){
@@ -1563,6 +1584,30 @@ function ltSkip(i,n){
   renderLines();ltPaint();
 }
 function ltAll(){ltLines(S.lines.map((l,i)=>i));}
+/* автопроверка: через 2,5 секунды после правки, не чаще раза в 8 секунд */
+const LT_TXT={};let ltTimer=0,ltLast=0;
+function ltAutoOn(){return S.ltAuto!==false;}
+function ltPaintAuto(){const b=$('ltAuto');b.classList.toggle('on',ltAutoOn());b.setAttribute('aria-pressed',ltAutoOn());}
+function ltAutoTgl(){
+  S.ltAuto=!ltAutoOn();ltPaintAuto();save();
+  if(ltAutoOn())ltSchedule(300);else clearTimeout(ltTimer);
+}
+function ltDirty(){
+  return S.lines.map((l,i)=>i).filter(i=>{
+    const l=S.lines[i];
+    return l.text.trim()&&LT_TXT[l.id]!==l.text;
+  });
+}
+function ltSchedule(ms){
+  if(!ltAutoOn())return;
+  clearTimeout(ltTimer);
+  const wait=Math.max(ms||2500,8000-(Date.now()-ltLast));
+  ltTimer=setTimeout(()=>{
+    if(ltBusy||trBusy){ltSchedule(3000);return;}
+    const d=ltDirty();if(!d.length)return;
+    ltLast=Date.now();ltLines(d,true);
+  },wait);
+}
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
@@ -1754,7 +1799,7 @@ async function openFile(){
     toast('Этот формат не поддерживается: .'+ext);
   }catch(e){console.error(e);toast('Не удалось открыть: '+e.message);}
 }
-function afterLoad(msg){syncPos=firstUnmarked();renderAll();saveNow();toast(msg);}
+function afterLoad(msg){syncPos=firstUnmarked();renderAll();saveNow();ltSchedule(1500);toast(msg);}
 let mammothP=null;
 function loadMammoth(){
   if(window.mammoth)return Promise.resolve();
@@ -1776,7 +1821,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,
+  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
@@ -1813,7 +1858,7 @@ $('fname').addEventListener('focus',e=>{if(!e.target.value)e.target.placeholder=
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNow();});
 
 function renderAll(){
-  paintView();$('trLang').value=S.trLang||'ru';
+  paintView();ltPaintAuto();$('trLang').value=S.trLang||'ru';
   $('title').value=S.title||'';$('subtitle').value=S.subtitle||'';$('fname').value=S.fname||'';
   renderSpeakers();renderLines();renderAudio();
   if(tab==='sync')renderSync();
@@ -1841,6 +1886,7 @@ function renderAll(){
   }catch(e){console.error('boot',e);toast('Память браузера недоступна — сохраняй проект файлом.');}
   syncPos=firstUnmarked();
   renderAll();
+  ltSchedule(5000);
   $('saved').textContent=S.lines.length?'сохранено':'';
 })();
 })();
