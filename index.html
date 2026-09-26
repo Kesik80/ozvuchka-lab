@@ -307,6 +307,15 @@ select.inp{appearance:auto}
       </div>
     </div>
     <div class="box">
+      <h2>Распознать запись</h2>
+      <p class="hint">Готовая запись разговора превращается в реплики: Gemini разбирает, кто что сказал и когда. Сама запись становится общей дорожкой, метки времени проставляются сразу.</p>
+      <div class="row">
+        <button class="btn pri" data-go="stt" id="sttBtn">Выбрать запись</button>
+        <select class="inp" id="sttLang" style="width:auto"><option value="de">Немецкий</option><option value="ru">Русский</option><option value="uk">Украинский</option><option value="">Определить саму</option></select>
+      </div>
+      <div class="hint" id="sttProg"></div>
+    </div>
+    <div class="box">
       <h2>Общая дорожка</h2>
       <p class="hint">Один MP3 со всем текстом, например диалог из ElevenLabs. Строки потом размечаются по времени во вкладке «Синхро».</p>
       <div class="row">
@@ -1676,6 +1685,91 @@ function ltSchedule(ms){
     ltLast=Date.now();ltLines(d,true);
   },wait);
 }
+
+/* ---------- распознавание записи (Gemini) ---------- */
+const STT_LIMIT=2400000;   // столько байт исходника уходит одним запросом
+function wavFrom(buf,from,to,rate){
+  const src=buf.getChannelData(0),ch2=buf.numberOfChannels>1?buf.getChannelData(1):null;
+  const sr=buf.sampleRate,step=sr/rate;
+  const n=Math.max(1,Math.floor((to-from)/step));
+  const out=new DataView(new ArrayBuffer(44+n*2));
+  const put=(o,s)=>{for(let i=0;i<s.length;i++)out.setUint8(o+i,s.charCodeAt(i));};
+  put(0,'RIFF');out.setUint32(4,36+n*2,true);put(8,'WAVEfmt ');out.setUint32(16,16,true);
+  out.setUint16(20,1,true);out.setUint16(22,1,true);out.setUint32(24,rate,true);
+  out.setUint32(28,rate*2,true);out.setUint16(32,2,true);out.setUint16(34,16,true);
+  put(36,'data');out.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){
+    const j=Math.min(src.length-1,Math.round(from+i*step));
+    let v=ch2?(src[j]+ch2[j])/2:src[j];
+    v=Math.max(-1,Math.min(1,v));
+    out.setInt16(44+i*2,v<0?v*32768:v*32767,true);
+  }
+  return new Blob([out.buffer],{type:'audio/wav'});
+}
+async function sttParts(file){
+  if(file.size<=STT_LIMIT)return [{blob:file,mime:file.type||'audio/mpeg',off:0}];
+  $('sttProg').textContent='Готовлю запись к разбору…';
+  const AC=window.AudioContext||window.webkitAudioContext,ac=new AC();
+  const buf=await ac.decodeAudioData(await file.arrayBuffer());ac.close&&ac.close();
+  const rate=16000,secs=60,parts=[];
+  for(let t=0;t<buf.duration;t+=secs){
+    const from=Math.floor(t*buf.sampleRate),to=Math.min(buf.length,Math.floor((t+secs)*buf.sampleRate));
+    parts.push({blob:wavFrom(buf,from,to,rate),mime:'audio/wav',off:t});
+  }
+  return parts;
+}
+async function sttApi(body){
+  for(let t=0;t<2;t++){
+    let r;
+    try{r=await fetch('/api/stt',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
+    catch(e){throw new Error('нет связи с сервером');}
+    let j={};try{j=await r.json();}catch(e){}
+    if(r.ok){console.log('распознавание: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.lines||[];}
+    if(r.status===404&&!j.error)throw new Error('функция /api/stt не найдена');
+    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    if(j.tried)console.warn('распознавание: '+j.tried.join(' | '));
+    throw new Error(j.error||('HTTP '+r.status));
+  }
+  throw new Error('неверный код доступа');
+}
+let sttBusy=false;
+async function stt(){
+  if(sttBusy)return;
+  const f=await pickFile('audio/*');if(!f)return;
+  const place=await askPlace();if(!place)return;
+  sttBusy=true;const btn=$('sttBtn');btn.disabled=true;
+  try{
+    const parts=await sttParts(f),lang=$('sttLang').value;
+    const got=[];
+    for(let n=0;n<parts.length;n++){
+      $('sttProg').textContent=parts.length>1?'Разбираю часть '+(n+1)+' из '+parts.length+'…':'Разбираю запись, это может занять минуту…';
+      const p=parts[n];
+      const b64=(await blobToData(p.blob)).split(',')[1];
+      const out=await sttApi({audio:b64,mime:p.mime,lang});
+      out.forEach(x=>got.push({spk:x.speaker||'',text:x.text,start:x.start!=null?Math.round((x.start+p.off)*100)/100:null}));
+    }
+    if(!got.length){$('sttProg').textContent='Речи не нашлось.';toast('Речи в записи не нашлось');}
+    else{
+      const map={};
+      const lines=got.map(x=>{
+        let sp=null;
+        if(x.spk){
+          if(!map[x.spk])map[x.spk]=spkByName('Говорящий '+(Object.keys(map).length+1)).id;
+          sp=map[x.spk];
+        }
+        return newLine({spk:sp,text:x.text,start:x.start});
+      });
+      if(place==='replace'){S.lines=lines;S.main=addBlob(f);edSrcId=null;}
+      else S.lines.push(...lines);
+      syncPos=firstUnmarked();
+      renderSpeakers();renderLines();renderAudio();renderEl();save();
+      $('sttProg').textContent='Готово: реплик '+lines.length+(place==='replace'?', запись стала общей дорожкой':'');
+      ltSchedule(2000);
+      toast('Распознано реплик: '+lines.length);
+    }
+  }catch(e){$('sttProg').textContent='Не вышло: '+e.message;toast('Распознавание не удалось: '+e.message);}
+  sttBusy=false;$('sttBtn').disabled=false;
+}
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
@@ -1889,7 +1983,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,
+  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
