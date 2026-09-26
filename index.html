@@ -393,6 +393,7 @@ select.inp{appearance:auto}
       <p class="hint">Если перевод скрыт, у каждой реплики есть глаз — открыть перевод только этой фразы.</p>
       <div class="row views"><button class="tgl" data-view="gloss">Перевод слов</button><button class="btn mini" data-go="glossBuild" id="glossBtn">Собрать словарь</button></div>
       <p class="hint" id="glossInfo"></p>
+      <p class="hint">В готовой странице кнопка «слова» подсвечивает разобранные слова: синие — новые, жёлтые — «учу», без цвета — «знаю». Отметки ставятся в подсказке слова и хранятся у читателя; там же выгрузка списка в CSV для Anki или Excel.</p>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <strong>Как будет выглядеть</strong>
@@ -436,11 +437,25 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln .tr{display:none}
 body:not(.notr) .ln:not(.flip) .tr{display:block}
 body.notr .ln.flip .tr{display:block}
-w{border-bottom:1px dotted transparent;cursor:help}
+w{border-bottom:1px dotted transparent;cursor:help;border-radius:3px}
 body.words w{border-bottom-color:color-mix(in srgb,var(--c,#1E2A44) 45%,transparent)}
-w.lit{background:color-mix(in srgb,var(--mark) 55%,transparent);border-radius:3px}
-.tip{position:fixed;z-index:20;max-width:80vw;background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.35;box-shadow:0 6px 20px rgba(10,14,24,.28);pointer-events:none}
+body.words w.s0{background:#DCE8FF;box-shadow:0 0 0 1px #DCE8FF}
+body.words w.s1{background:#FFE9A8;box-shadow:0 0 0 1px #FFE9A8}
+body.words w.s2{background:none;border-bottom-color:transparent}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) body.words w.s0{background:#233250;box-shadow:0 0 0 1px #233250}
+:root:not([data-theme=light]) body.words w.s1{background:#4A3C12;box-shadow:0 0 0 1px #4A3C12}}
+w.lit{outline:2px solid var(--mark);outline-offset:1px}
+.tip{position:fixed;z-index:20;max-width:80vw;background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.35;box-shadow:0 6px 20px rgba(10,14,24,.28);pointer-events:auto}
 .tip b{display:block;font-size:13px;opacity:.75;font-weight:500}
+.tip .mk{display:flex;gap:6px;margin-top:8px}
+.tip .mk button{flex:1;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;border-radius:999px;padding:6px 10px;font:500 13px/1 inherit;min-height:32px;white-space:nowrap}
+.tip .mk button.on{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
+.wbar{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.wbar .cnts,.wbar .dls{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.wbar .cnt{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.wbar .sw{width:12px;height:12px;border-radius:3px;display:inline-block;flex:none}
+.wbar button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;font:500 13px/1 inherit;min-height:32px;white-space:nowrap}
+.wbar button[disabled]{opacity:.45}
 /* вид «чат» */
 body.lay-chat .ln{max-width:88%;background:color-mix(in srgb,var(--c) 10%,var(--bar));border:1px solid color-mix(in srgb,var(--c) 22%,transparent);border-radius:16px 16px 16px 5px;padding:10px 12px;margin:0 0 10px}
 body.lay-chat .ln.me{margin-left:auto;border-radius:16px 16px 5px 16px}
@@ -490,6 +505,9 @@ function src(id){
   }
   return Promise.resolve(srcCache[id]=s);
 }
+var WKEY='ozv:w:'+(D.key||'x');   // знакомость слов живёт отдельно от настроек показа
+var WS={};try{WS=JSON.parse(localStorage.getItem(WKEY)||'{}')||{};}catch(e){}
+function saveWS(){try{localStorage.setItem(WKEY,JSON.stringify(WS));}catch(e){}}
 var G=D.gloss||null,hasG=false;
 if(G&&G.length)for(var gi=0;gi<G.length;gi++){for(var gk in G[gi]){hasG=true;break;}if(hasG)break;}
 function wrapWords(t,idx){
@@ -499,7 +517,7 @@ function wrapWords(t,idx){
   while((m=re.exec(t))){
     out+=esc(t.slice(last,m.index));
     var k=m[0].toLowerCase(),g=map[k];
-    out+=g?'<w data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'">'+esc(m[0])+'</w>':esc(m[0]);
+    out+=g?'<w class="s'+(WS[k]||0)+'" data-w="'+esc(k)+'" data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'">'+esc(m[0])+'</w>':esc(m[0]);
     last=m.index+m[0].length;
   }
   return out+esc(t.slice(last));
@@ -593,13 +611,33 @@ function tick(){
   if(!main.paused)raf=requestAnimationFrame(tick);
 }
 function loop(){if(!raf)raf=requestAnimationFrame(tick);}
-var tipEl=null,tipFor=null,pressT=0;
-function hideTip(){if(tipEl){tipEl.remove();tipEl=null;}if(tipFor){tipFor.classList.remove('lit');tipFor=null;}}
+var tipEl=null,tipFor=null,pressT=0,tipHold=false;
+function hideTip(){if(tipHold)return;if(tipEl){tipEl.remove();tipEl=null;}if(tipFor){tipFor.classList.remove('lit');tipFor=null;}}
+function wordState(k){return WS[k]||0;}
+function setState(k,s){
+  if(s)WS[k]=s;else delete WS[k];
+  saveWS();
+  var all=box.querySelectorAll('w[data-w="'+(window.CSS&&CSS.escape?CSS.escape(k):k)+'"]');
+  for(var i=0;i<all.length;i++)all[i].className=(all[i].classList.contains('lit')?'lit ':'')+'s'+(WS[k]||0);
+  wbarPaint();
+}
 function showTip(w){
   var g={b:w.dataset.b,t:w.dataset.t};if(!g.b&&!g.t)return;
   hideTip();
+  var k=w.dataset.w||'',st=wordState(k);
   tipEl=document.createElement('div');tipEl.className='tip';
-  tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'');
+  tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'')+
+    (k?'<div class="mk"><button data-s="1"'+(st===1?' class="on"':'')+'>учу</button><button data-s="2"'+(st===2?' class="on"':'')+'>знаю</button></div>':'');
+  tipEl.addEventListener('click',function(e){
+    var b2=e.target.closest('button[data-s]');if(!b2)return;
+    e.stopPropagation();
+    var s=+b2.dataset.s;
+    setState(k,wordState(k)===s?0:s);
+    var btns=tipEl.querySelectorAll('button[data-s]');
+    for(var i=0;i<btns.length;i++)btns[i].className=(+btns[i].dataset.s===wordState(k)?'on':'');
+  });
+  tipEl.addEventListener('mouseenter',function(){tipHold=true;});
+  tipEl.addEventListener('mouseleave',function(){tipHold=false;hideTip();});
   document.body.appendChild(tipEl);
   var r2=w.getBoundingClientRect(),t2=tipEl.getBoundingClientRect();
   var x=Math.min(Math.max(8,r2.left+r2.width/2-t2.width/2),innerWidth-t2.width-8);
@@ -627,10 +665,64 @@ if(hasG){
   box.addEventListener('click',function(e){if(eatClick){eatClick=false;e.stopPropagation();e.preventDefault();}},true);
   if(matchMedia('(hover:hover)').matches){
     box.addEventListener('mouseover',function(e){var w=e.target.closest('w');if(w)showTip(w);});
-    box.addEventListener('mouseout',function(e){if(e.target.closest('w'))hideTip();});
+    box.addEventListener('mouseout',function(e){if(e.target.closest('w'))setTimeout(hideTip,120);});
   }
-  document.addEventListener('click',function(e){if(!e.target.closest('w'))hideTip();});
+  document.addEventListener('click',function(e){if(!e.target.closest('w')&&!e.target.closest('.tip'))hideTip();});
   addEventListener('scroll',hideTip,{passive:true});
+}
+/* панель «слова»: сколько новых / учу / знаю и выгрузка списка */
+var wbar=null;
+function allWords(){
+  var m={},order=[];
+  if(!hasG)return order;
+  for(var i=0;i<L.length;i++){
+    var g=G[i];if(!g)continue;
+    var s=(L[i].text||'').trim();
+    for(var k in g){
+      var id=k+'|'+(g[k].b||'')+'|'+(g[k].t||'');
+      if(m[id])continue;
+      m[id]=1;order.push({w:k,b:g[k].b||'',t:g[k].t||'',s:s});
+    }
+  }
+  return order;
+}
+function wbarPaint(){
+  if(!wbar)return;
+  var seen={},n0=0,n1=0,n2=0;
+  allWords().forEach(function(x){if(seen[x.w])return;seen[x.w]=1;var s=WS[x.w]||0;if(s===1)n1++;else if(s===2)n2++;else n0++;});
+  wbar.querySelector('.c0').textContent=n0;
+  wbar.querySelector('.c1').textContent=n1;
+  wbar.querySelector('.c2').textContent=n2;
+  var b1=wbar.querySelector('[data-dl="1"]');
+  b1.textContent='⬇ учу ('+n1+')';b1.disabled=!n1;
+}
+function csvEsc(s){s=String(s==null?'':s);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text){
+  var b=new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},20000);
+}
+function exportWords(onlyLearning){
+  var rows=allWords().filter(function(x){return onlyLearning?(WS[x.w]||0)===1:true;});
+  if(!rows.length)return;
+  var head=['слово','словарная форма','перевод','пример','статус'].join(';');
+  var st={0:'новое',1:'учу',2:'знаю'};
+  var body=rows.map(function(x){return [x.w,x.b,x.t,x.s,st[WS[x.w]||0]].map(csvEsc).join(';');}).join('\n');
+  var base=(D.title||'ozvuchka').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,40)||'ozvuchka';
+  download(base+(onlyLearning?'_ucu':'_slova')+'.csv',head+'\n'+body);
+}
+function wbarInit(){
+  if(wbar||!hasG)return;
+  wbar=document.createElement('div');wbar.className='wbar';
+  wbar.innerHTML='<span class="cnts">'+
+    '<span class="cnt"><i class="sw" style="background:#DCE8FF"></i>новых <b class="c0">0</b></span>'+
+    '<span class="cnt"><i class="sw" style="background:#FFE9A8"></i>учу <b class="c1">0</b></span>'+
+    '<span class="cnt"><i class="sw" style="background:transparent;box-shadow:inset 0 0 0 1px var(--line)"></i>знаю <b class="c2">0</b></span></span>'+
+    '<span class="dls"><button data-dl="1">⬇ учу (0)</button><button data-dl="0">⬇ все</button></span>';
+  wbar.addEventListener('click',function(e){var b=e.target.closest('[data-dl]');if(b)exportWords(b.dataset.dl==='1');});
+  box.parentNode.insertBefore(wbar,box);
+  wbarPaint();
 }
 function ui(){
   var playing=!main.paused||!clip.paused;
@@ -645,6 +737,7 @@ function ui(){
   $('o-wd').hidden=!hasG;
   $('o-wd').classList.toggle('on',P.words);
   document.body.classList.toggle('words',hasG&&P.words);
+  if(hasG&&P.words){wbarInit();wbar.hidden=false;wbarPaint();}else if(wbar)wbar.hidden=true;
   $('o-mk').classList.toggle('on',P.mk);
   document.body.classList.toggle('nomk',!P.mk);
   document.body.classList.toggle('hide',P.hide);
