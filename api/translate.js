@@ -65,19 +65,23 @@ module.exports = async function handler(req, res) {
   if (!lines.length && b.mode !== 'gloss') return res.status(400).json({ error: 'Нет строк' });
   const context = Array.isArray(b.context) ? b.context.slice(0, 40).map(x => String(x || '').slice(0, 300)) : [];
 
-  const words = Array.isArray(b.words) ? b.words.slice(0, 200).map(x => String(x || '').slice(0, 40)).filter(Boolean) : [];
-  const glossMode = b.mode === 'gloss' && words.length;
+  // словарь: каждое слово приходит со своим предложением — значение подбирается по нему
+  const items = Array.isArray(b.items) ? b.items.slice(0, 120)
+    .map(x => ({ word: String((x && x.word) || '').slice(0, 40), sentence: String((x && x.sentence) || '').slice(0, 400) }))
+    .filter(x => x.word) : [];
+  const glossMode = b.mode === 'gloss' && items.length;
 
   const prompt = glossMode ?
-    'You build a mini-dictionary for a learner of ' + LANGS[from] + '.\n' +
-    'For EACH word of the JSON array below give: the dictionary form and a short ' + LANGS[to] + ' translation that fits this text.\n' +
-    'Rules: keep the same number of items and the same order; "base" is the dictionary form ' +
-    '(for German nouns with the article: "das Jahr"; for verbs the infinitive); ' +
-    '"tr" is one to three words in ' + LANGS[to] + ', no explanations, no brackets.\n' +
-    (context.length ? 'Sentences the words come from, for sense only: ' + JSON.stringify(context) + '\n' : '') +
-    'Return only a JSON array of objects {"base": string, "tr": string}. Words: ' + JSON.stringify(words)
+    'You build a reading aid for a learner of ' + LANGS[from] + '.\n' +
+    'Each item below is one word together with the sentence it occurs in.\n' +
+    'For EACH item give the dictionary form and a short ' + LANGS[to] + ' translation OF THAT WORD AS IT IS USED IN THAT SENTENCE.\n' +
+    'Rules: keep the same number of items and the same order; ' +
+    '"base" is the dictionary form (German nouns with their article: "das Jahr"; verbs in the infinitive; ' +
+    'a separated prefix belongs to its verb: in "ich stehe auf" both "stehe" and "auf" get base "aufstehen"); ' +
+    '"tr" is one to three words in ' + LANGS[to] + ' that fit THIS sentence — the one sense used here, not a list of meanings, ' +
+    'no explanations, no brackets. For names of people and places keep the name as "base" and its usual ' + LANGS[to] + ' form as "tr".\n' +
+    'Return only a JSON array of objects {"base": string, "tr": string}. Items: ' + JSON.stringify(items)
     :
-
     'You translate study texts and dialogues for a language learner.\n' +
     'Translate EACH line of the JSON array below from ' + LANGS[from] + ' into natural, simple ' + LANGS[to] + '.\n' +
     'Rules: keep the same number of items and the same order; one translation per item; ' +
@@ -101,8 +105,8 @@ module.exports = async function handler(req, res) {
         try {
           const out = await ask(key, model, prompt, simple, glossMode);
           if (glossMode) {
-            if (!Array.isArray(out) || out.length !== words.length) {
-              last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' слов вместо ' + words.length);
+            if (!Array.isArray(out) || out.length !== items.length) {
+              last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' слов вместо ' + items.length);
               tried.push(model + ' → формат');
               break;
             }

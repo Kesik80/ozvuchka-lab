@@ -493,14 +493,16 @@ function src(id){
   }
   return Promise.resolve(srcCache[id]=s);
 }
-var G=D.gloss||{},hasG=false;for(var gk in G){hasG=true;break;}
-function wrapWords(t){
-  if(!hasG)return esc(t);
+var G=D.gloss||null,hasG=false;
+if(G&&G.length)for(var gi=0;gi<G.length;gi++){for(var gk in G[gi]){hasG=true;break;}if(hasG)break;}
+function wrapWords(t,idx){
+  var map=hasG&&G[idx]?G[idx]:null;
+  if(!map)return esc(t);
   var out='',re=/[\p{L}\p{M}'\u2019-]+/gu,last=0,m;
   while((m=re.exec(t))){
     out+=esc(t.slice(last,m.index));
-    var k=m[0].toLowerCase();
-    out+=G[k]?'<w data-w="'+esc(k)+'">'+esc(m[0])+'</w>':esc(m[0]);
+    var k=m[0].toLowerCase(),g=map[k];
+    out+=g?'<w data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'">'+esc(m[0])+'</w>':esc(m[0]);
     last=m.index+m[0].length;
   }
   return out+esc(t.slice(last));
@@ -525,7 +527,7 @@ L.forEach(function(l,i){
     var playable=l.clip&&AU[l.clip] || (hasMain&&l.start!=null);
     if(!playable)el.classList.add('silent');
     var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
-    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
     if(sp&&side[l.spk])el.classList.add('me');
     (function(idx){
       el.addEventListener('click',function(e){
@@ -596,7 +598,7 @@ function loop(){if(!raf)raf=requestAnimationFrame(tick);}
 var tipEl=null,tipFor=null,pressT=0;
 function hideTip(){if(tipEl){tipEl.remove();tipEl=null;}if(tipFor){tipFor.classList.remove('lit');tipFor=null;}}
 function showTip(w){
-  var g=G[w.dataset.w];if(!g)return;
+  var g={b:w.dataset.b,t:w.dataset.t};if(!g.b&&!g.t)return;
   hideTip();
   tipEl=document.createElement('div');tipEl.className='tip';
   tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'');
@@ -1834,56 +1836,72 @@ async function stt(){
 
 /* ---------- словарь слов для подсказок ---------- */
 const WORD_RE=/[\p{L}\p{M}'\u2019-]+/gu;
-function glossWords(){
-  const seen=new Set();
-  S.lines.forEach(l=>{if(l.type==='head'&&!l.text.trim())return;(l.text.match(WORD_RE)||[]).forEach(w=>{
-    const k=w.toLowerCase();if(k.length>1&&!/^\d+$/.test(k))seen.add(k);
-  });});
-  return [...seen];
+const SEP='\u001f';
+const glossKey=(w,s)=>w+SEP+s;
+function glossPairs(){
+  // одна пара «слово + его предложение» — значение подбирается по смыслу этой фразы
+  const out=[],seen=new Set();
+  S.lines.forEach(l=>{
+    const s=l.text.trim();if(!s)return;
+    (s.match(WORD_RE)||[]).forEach(w=>{
+      const k=w.toLowerCase();
+      if(k.length<2||/^\d+$/.test(k))return;
+      const key=glossKey(k,s);
+      if(seen.has(key))return;
+      seen.add(key);out.push({w:k,s,key});
+    });
+  });
+  return out;
 }
 function glossOut(){
   if(!viewS().gloss||!S.gloss)return null;
-  const need=glossWords(),out={};
-  need.forEach(w=>{if(S.gloss[w])out[w]={b:S.gloss[w].b||'',t:S.gloss[w].t||''};});
-  return Object.keys(out).length?out:null;
+  let any=false;
+  const out=S.lines.map(l=>{
+    const s=l.text.trim(),m={};
+    if(s)(s.match(WORD_RE)||[]).forEach(w=>{
+      const k=w.toLowerCase(),g=S.gloss[glossKey(k,s)];
+      if(g&&(g.t||g.b)){m[k]={b:g.b||'',t:g.t||''};any=true;}
+    });
+    return m;
+  });
+  return any?out:null;
 }
 function glossInfo(){
-  const need=glossWords(),have=need.filter(w=>S.gloss&&S.gloss[w]).length;
+  const need=glossPairs(),have=need.filter(x=>S.gloss&&S.gloss[x.key]).length;
   const to=trDir()[0]==='de'?trDir()[1]:trDir()[0];
   $('glossInfo').textContent=!viewS().gloss?'Подсказки по словам в страницу не попадут.'
     :!need.length?'Сначала добавь текст.'
-    :have>=need.length?'Словарь готов: слов '+have+' ('+LANG_SHORT[to]+'). В странице долгое нажатие на слово показывает перевод.'
-    :'Слов в тексте '+need.length+', в словаре '+have+'. Нажми «Собрать словарь».';
+    :have>=need.length?'Словарь готов: слов '+have+' ('+LANG_SHORT[to]+'). Перевод подобран по смыслу каждой фразы; в странице долгое нажатие на слово показывает подсказку.'
+    :'Слов с учётом фраз: '+need.length+', разобрано '+have+'. Нажми «Собрать словарь».';
   $('glossBtn').hidden=!viewS().gloss;
 }
 let glossBusy=false;
 async function glossBuild(){
   if(glossBusy)return;
   const from=trDir()[0]==='de'?'de':trDir()[0],to=trDir()[0]==='de'?trDir()[1]:'ru';
-  if(S.glossLang&&S.glossLang!==to){S.gloss={};}
+  if(S.glossLang&&S.glossLang!==to)S.gloss={};
   S.gloss=S.gloss||{};S.glossLang=to;
-  const need=glossWords().filter(w=>!S.gloss[w]);
+  const need=glossPairs().filter(x=>!S.gloss[x.key]);
   if(!need.length){toast('Словарь уже собран.');glossInfo();return;}
   glossBusy=true;const btn=$('glossBtn');btn.disabled=true;
   let done=0;
   try{
-    for(let k=0;k<need.length;k+=150){
-      const part=need.slice(k,k+150);
+    for(let k=0;k<need.length;k+=100){
+      const part=need.slice(k,k+100);
       btn.textContent='Собираю '+Math.min(k+part.length,need.length)+'/'+need.length;
-      const ctx=S.lines.filter(l=>l.type!=='head'&&l.text.trim()).slice(0,40).map(l=>l.text.trim());
-      const r=await trApiGloss(part,ctx,from,to);
-      part.forEach((w,n)=>{const g=r[n];if(g&&(g.tr||g.base))S.gloss[w]={b:g.base||'',t:g.tr||''};});
+      const r=await trApiGloss(part.map(x=>({word:x.w,sentence:x.s})),from,to);
+      part.forEach((x,n)=>{const g=r[n];if(g&&(g.tr||g.base))S.gloss[x.key]={b:g.base||'',t:g.tr||''};});
       done+=part.length;save();
     }
     toast('Словарь собран: слов '+done);
-  }catch(e){toast('Словарь не собрался: '+e.message);}
+  }catch(e){toast('Словарь не собрался: '+e.message+(done?' (готово '+done+')':''));}
   glossBusy=false;btn.disabled=false;btn.textContent='Собрать словарь';glossInfo();
   if(tab==='done')preview();
 }
-async function trApiGloss(words,context,from,to){
+async function trApiGloss(items,from,to){
   for(let t=0;t<2;t++){
     let r;
-    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({mode:'gloss',words,context,from,to})});}
+    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({mode:'gloss',items,from,to})});}
     catch(e){throw new Error('нет связи с сервером');}
     let j={};try{j=await r.json();}catch(e){}
     if(r.ok)return j.gloss||[];
@@ -2119,7 +2137,7 @@ $('nav').addEventListener('click',e=>{
   if(tab!=='sync'&&syncOn){ed.pause();syncOn=false;}
   if(tab==='audio'){renderAudio();if(!QUOTA)loadQuota();}
   if(tab==='sync'){if(syncPos===0)syncPos=firstUnmarked();renderSync();}
-  if(tab==='done'){$('mainPlayer').pause();ed.pause();preview();}
+  if(tab==='done'){$('mainPlayer').pause();ed.pause();glossInfo();preview();}
   if(tab==='text')renderLines();
   window.scrollTo(0,0);
 });
