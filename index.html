@@ -394,6 +394,8 @@ select.inp{appearance:auto}
       <p class="hint" id="layHint"></p>
       <div class="row views"><span class="hint" style="margin:0">Открывать с показанным:</span><button class="tgl" data-view="trOut">Перевод</button><button class="tgl" data-view="markerOut">Маркер</button></div>
       <p class="hint">Если перевод скрыт, у каждой реплики есть глаз — открыть перевод только этой фразы.</p>
+      <div class="row views"><button class="tgl" data-view="gloss">Перевод слов</button><button class="btn mini" data-go="glossBuild" id="glossBtn">Собрать словарь</button></div>
+      <p class="hint" id="glossInfo"></p>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <strong>Как будет выглядеть</strong>
@@ -437,6 +439,11 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln .tr{display:none}
 body:not(.notr) .ln:not(.flip) .tr{display:block}
 body.notr .ln.flip .tr{display:block}
+w{border-bottom:1px dotted transparent;cursor:help}
+body.words w{border-bottom-color:color-mix(in srgb,var(--c,#1E2A44) 45%,transparent)}
+w.lit{background:color-mix(in srgb,var(--mark) 55%,transparent);border-radius:3px}
+.tip{position:fixed;z-index:20;max-width:80vw;background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.35;box-shadow:0 6px 20px rgba(10,14,24,.28);pointer-events:none}
+.tip b{display:block;font-size:13px;opacity:.75;font-weight:500}
 /* вид «чат» */
 body.lay-chat .ln{max-width:88%;background:color-mix(in srgb,var(--c) 10%,var(--bar));border:1px solid color-mix(in srgb,var(--c) 22%,transparent);border-radius:16px 16px 16px 5px;padding:10px 12px;margin:0 0 10px}
 body.lay-chat .ln.me{margin-left:auto;border-radius:16px 16px 5px 16px}
@@ -471,7 +478,7 @@ var L=D.lines, SP={};
 (D.speakers||[]).forEach(function(s){SP[s.id]=s;});
 var V=D.view||{};
 var KEY='ozv:'+(D.key||'x')+':'+(V.tr===false?0:1)+(V.marker===false?0:1);
-var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false};
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv)for(var k in P)if(k in sv)P[k]=sv[k];}catch(e){}
 function saveP(){try{localStorage.setItem(KEY,JSON.stringify(P));}catch(e){}}
 var main=new Audio(), clip=new Audio();
@@ -485,6 +492,18 @@ function src(id){
     return fetch(s).then(function(r){return r.blob();}).then(function(b){return srcCache[id]=URL.createObjectURL(b);}).catch(function(){return srcCache[id]=s;});
   }
   return Promise.resolve(srcCache[id]=s);
+}
+var G=D.gloss||{},hasG=false;for(var gk in G){hasG=true;break;}
+function wrapWords(t){
+  if(!hasG)return esc(t);
+  var out='',re=/[\p{L}\p{M}'\u2019-]+/gu,last=0,m;
+  while((m=re.exec(t))){
+    out+=esc(t.slice(last,m.index));
+    var k=m[0].toLowerCase();
+    out+=G[k]?'<w data-w="'+esc(k)+'">'+esc(m[0])+'</w>':esc(m[0]);
+    last=m.index+m[0].length;
+  }
+  return out+esc(t.slice(last));
 }
 var box=document.getElementById('txt'), els=[];
 document.body.classList.add('lay-'+(V.layout||'plain'));
@@ -506,7 +525,7 @@ L.forEach(function(l,i){
     var playable=l.clip&&AU[l.clip] || (hasMain&&l.start!=null);
     if(!playable)el.classList.add('silent');
     var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
-    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+esc(l.text)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
     if(sp&&side[l.spk])el.classList.add('me');
     (function(idx){
       el.addEventListener('click',function(e){
@@ -574,6 +593,42 @@ function tick(){
   if(!main.paused)raf=requestAnimationFrame(tick);
 }
 function loop(){if(!raf)raf=requestAnimationFrame(tick);}
+var tipEl=null,tipFor=null,pressT=0;
+function hideTip(){if(tipEl){tipEl.remove();tipEl=null;}if(tipFor){tipFor.classList.remove('lit');tipFor=null;}}
+function showTip(w){
+  var g=G[w.dataset.w];if(!g)return;
+  hideTip();
+  tipEl=document.createElement('div');tipEl.className='tip';
+  tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'');
+  document.body.appendChild(tipEl);
+  var r2=w.getBoundingClientRect(),t2=tipEl.getBoundingClientRect();
+  var x=Math.min(Math.max(8,r2.left+r2.width/2-t2.width/2),innerWidth-t2.width-8);
+  var y=r2.top-t2.height-8;if(y<8)y=r2.bottom+8;
+  tipEl.style.left=x+'px';tipEl.style.top=y+'px';
+  tipFor=w;w.classList.add('lit');
+}
+if(hasG){
+  var HOVER=matchMedia('(hover:hover)').matches;
+  box.addEventListener('click',function(e){
+    var w=e.target.closest('w');
+    if(!w||!P.words)return;
+    e.stopPropagation();
+    if(HOVER)showTip(w);
+    else if(tipFor===w)hideTip();
+    else showTip(w);
+  },true);
+  box.addEventListener('touchstart',function(e){
+    var w=e.target.closest('w');if(!w)return;
+    clearTimeout(pressT);pressT=setTimeout(function(){showTip(w);},450);
+  },{passive:true});
+  ['touchend','touchmove','touchcancel'].forEach(function(ev){box.addEventListener(ev,function(){clearTimeout(pressT);},{passive:true});});
+  if(matchMedia('(hover:hover)').matches){
+    box.addEventListener('mouseover',function(e){var w=e.target.closest('w');if(w)showTip(w);});
+    box.addEventListener('mouseout',function(e){if(e.target.closest('w'))hideTip();});
+  }
+  document.addEventListener('click',function(e){if(!e.target.closest('w'))hideTip();});
+  addEventListener('scroll',hideTip,{passive:true});
+}
 function ui(){
   var playing=!main.paused||!clip.paused;
   playBtn.textContent=playing?'❚❚':'▶';
@@ -584,6 +639,9 @@ function ui(){
   $('o-hd').classList.toggle('on',P.hide);
   $('o-tr').classList.toggle('on',P.tr);
   $('o-tr').hidden=!anyTr;
+  $('o-wd').hidden=!hasG;
+  $('o-wd').classList.toggle('on',P.words);
+  document.body.classList.toggle('words',hasG&&P.words);
   $('o-mk').classList.toggle('on',P.mk);
   document.body.classList.toggle('nomk',!P.mk);
   document.body.classList.toggle('hide',P.hide);
@@ -656,7 +714,8 @@ $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
   els.forEach(function(e){if(e&&e.classList){e.classList.remove('flip');var b=e.querySelector('.eye');if(b)b.classList.remove('on');}});
   ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
-if(!hasMain&&nextClip(0)<0)$('pl').hidden=true;
+$('o-wd').addEventListener('click',function(){P.words=!P.words;hideTip();saveP();ui();});
+if(!hasMain&&nextClip(0)<0){var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;if(!anyTr&&!hasG)$('pl').hidden=true;}
 ui();
 })();
 </script>
@@ -674,7 +733,7 @@ const fmtS=t=>{if(!isFinite(t))t=0;const m=Math.floor(t/60),s=Math.floor(t%60);r
 const fmtMB=b=>(b/1048576).toFixed(b<10485760?1:0)+' МБ';
 
 /* ---------- state ---------- */
-const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true,trOut:false,markerOut:true,layout:'plain'},ltAuto:true,trDir:'de>ru'});
+const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true,trOut:false,markerOut:true,layout:'plain'},ltAuto:true,trDir:'de>ru',gloss:null,glossLang:null});
 let S=blank();
 const A={}; // id -> {blob,url} | {remote}
 function srcOf(id){const a=A[id];if(!a)return null;return a.remote||a.url||null;}
@@ -1437,6 +1496,7 @@ function viewS(){
   if(v.tr===undefined)v.tr=true;
   if(v.marker===undefined)v.marker=true;
   if(v.trOut===undefined)v.trOut=false;
+  if(v.gloss===undefined)v.gloss=true;
   if(v.markerOut===undefined)v.markerOut=v.marker!==false;
   if(!v.layout)v.layout='plain';
   return S.view;
@@ -1453,6 +1513,7 @@ function paintView(){
   document.querySelectorAll('[data-view]').forEach(b=>{const on=!!v[b.dataset.view];b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
   document.querySelectorAll('[data-lay]').forEach(b=>{const on=v.layout===b.dataset.lay;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
   $('layHint').textContent=LAY_HINT[v.layout]||'';
+  glossInfo();
   document.body.classList.toggle('notr',!v.tr);
   document.body.classList.toggle('nomk',!v.marker);
 }
@@ -1770,10 +1831,71 @@ async function stt(){
   }catch(e){$('sttProg').textContent='Не вышло: '+e.message;toast('Распознавание не удалось: '+e.message);}
   sttBusy=false;$('sttBtn').disabled=false;
 }
+
+/* ---------- словарь слов для подсказок ---------- */
+const WORD_RE=/[\p{L}\p{M}'\u2019-]+/gu;
+function glossWords(){
+  const seen=new Set();
+  S.lines.forEach(l=>{if(l.type==='head'&&!l.text.trim())return;(l.text.match(WORD_RE)||[]).forEach(w=>{
+    const k=w.toLowerCase();if(k.length>1&&!/^\d+$/.test(k))seen.add(k);
+  });});
+  return [...seen];
+}
+function glossOut(){
+  if(!viewS().gloss||!S.gloss)return null;
+  const need=glossWords(),out={};
+  need.forEach(w=>{if(S.gloss[w])out[w]={b:S.gloss[w].b||'',t:S.gloss[w].t||''};});
+  return Object.keys(out).length?out:null;
+}
+function glossInfo(){
+  const need=glossWords(),have=need.filter(w=>S.gloss&&S.gloss[w]).length;
+  const to=trDir()[0]==='de'?trDir()[1]:trDir()[0];
+  $('glossInfo').textContent=!viewS().gloss?'Подсказки по словам в страницу не попадут.'
+    :!need.length?'Сначала добавь текст.'
+    :have>=need.length?'Словарь готов: слов '+have+' ('+LANG_SHORT[to]+'). В странице долгое нажатие на слово показывает перевод.'
+    :'Слов в тексте '+need.length+', в словаре '+have+'. Нажми «Собрать словарь».';
+  $('glossBtn').hidden=!viewS().gloss;
+}
+let glossBusy=false;
+async function glossBuild(){
+  if(glossBusy)return;
+  const from=trDir()[0]==='de'?'de':trDir()[0],to=trDir()[0]==='de'?trDir()[1]:'ru';
+  if(S.glossLang&&S.glossLang!==to){S.gloss={};}
+  S.gloss=S.gloss||{};S.glossLang=to;
+  const need=glossWords().filter(w=>!S.gloss[w]);
+  if(!need.length){toast('Словарь уже собран.');glossInfo();return;}
+  glossBusy=true;const btn=$('glossBtn');btn.disabled=true;
+  let done=0;
+  try{
+    for(let k=0;k<need.length;k+=150){
+      const part=need.slice(k,k+150);
+      btn.textContent='Собираю '+Math.min(k+part.length,need.length)+'/'+need.length;
+      const ctx=S.lines.filter(l=>l.type!=='head'&&l.text.trim()).slice(0,40).map(l=>l.text.trim());
+      const r=await trApiGloss(part,ctx,from,to);
+      part.forEach((w,n)=>{const g=r[n];if(g&&(g.tr||g.base))S.gloss[w]={b:g.base||'',t:g.tr||''};});
+      done+=part.length;save();
+    }
+    toast('Словарь собран: слов '+done);
+  }catch(e){toast('Словарь не собрался: '+e.message);}
+  glossBusy=false;btn.disabled=false;btn.textContent='Собрать словарь';glossInfo();
+  if(tab==='done')preview();
+}
+async function trApiGloss(words,context,from,to){
+  for(let t=0;t<2;t++){
+    let r;
+    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({mode:'gloss',words,context,from,to})});}
+    catch(e){throw new Error('нет связи с сервером');}
+    let j={};try{j=await r.json();}catch(e){}
+    if(r.ok)return j.gloss||[];
+    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    throw new Error(j.error||('HTTP '+r.status));
+  }
+  throw new Error('неверный код доступа');
+}
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
 }
 async function buildHTML(embed){
   const au={};
@@ -1786,7 +1908,7 @@ async function buildHTML(embed){
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
@@ -1983,7 +2105,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,
+  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };

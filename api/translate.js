@@ -12,10 +12,12 @@ function keys() {
   return out;
 }
 
-async function ask(key, model, prompt, simple) {
+async function ask(key, model, prompt, simple, glossMode) {
   const cfg = { temperature: 0.2, responseMimeType: 'application/json' };
   if (!simple) {
-    cfg.responseSchema = { type: 'ARRAY', items: { type: 'STRING' } };
+    cfg.responseSchema = glossMode
+      ? { type: 'ARRAY', items: { type: 'OBJECT', properties: { base: { type: 'STRING' }, tr: { type: 'STRING' } }, required: ['base', 'tr'] } }
+      : { type: 'ARRAY', items: { type: 'STRING' } };
     if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
   }
   const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
@@ -60,10 +62,22 @@ module.exports = async function handler(req, res) {
   const to = LANGS[b.to] ? b.to : 'ru';
   const from = LANGS[b.from] ? b.from : 'de';
   const lines = Array.isArray(b.lines) ? b.lines.slice(0, 80).map(x => String(x || '').slice(0, 1000)) : [];
-  if (!lines.length) return res.status(400).json({ error: 'Нет строк' });
+  if (!lines.length && b.mode !== 'gloss') return res.status(400).json({ error: 'Нет строк' });
   const context = Array.isArray(b.context) ? b.context.slice(0, 40).map(x => String(x || '').slice(0, 300)) : [];
 
-  const prompt =
+  const words = Array.isArray(b.words) ? b.words.slice(0, 200).map(x => String(x || '').slice(0, 40)).filter(Boolean) : [];
+  const glossMode = b.mode === 'gloss' && words.length;
+
+  const prompt = glossMode ?
+    'You build a mini-dictionary for a learner of ' + LANGS[from] + '.\n' +
+    'For EACH word of the JSON array below give: the dictionary form and a short ' + LANGS[to] + ' translation that fits this text.\n' +
+    'Rules: keep the same number of items and the same order; "base" is the dictionary form ' +
+    '(for German nouns with the article: "das Jahr"; for verbs the infinitive); ' +
+    '"tr" is one to three words in ' + LANGS[to] + ', no explanations, no brackets.\n' +
+    (context.length ? 'Sentences the words come from, for sense only: ' + JSON.stringify(context) + '\n' : '') +
+    'Return only a JSON array of objects {"base": string, "tr": string}. Words: ' + JSON.stringify(words)
+    :
+
     'You translate study texts and dialogues for a language learner.\n' +
     'Translate EACH line of the JSON array below from ' + LANGS[from] + ' into natural, simple ' + LANGS[to] + '.\n' +
     'Rules: keep the same number of items and the same order; one translation per item; ' +
@@ -85,7 +99,16 @@ module.exports = async function handler(req, res) {
       let simple = false;
       for (let att = 0; att < 3; att++) {
         try {
-          const out = await ask(key, model, prompt, simple);
+          const out = await ask(key, model, prompt, simple, glossMode);
+          if (glossMode) {
+            if (!Array.isArray(out) || out.length !== words.length) {
+              last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' слов вместо ' + words.length);
+              tried.push(model + ' → формат');
+              break;
+            }
+            const gloss = out.map(x => ({ base: String((x && x.base) || '').slice(0, 60), tr: String((x && x.tr) || '').slice(0, 80) }));
+            return res.status(200).json({ gloss, model, tried });
+          }
           if (!Array.isArray(out) || out.length !== lines.length) {
             last = new Error('Gemini вернул ' + (Array.isArray(out) ? out.length : 0) + ' строк вместо ' + lines.length);
             tried.push(model + ' → формат');
