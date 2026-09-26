@@ -2,7 +2,7 @@
 // ENV: GEMINI_API_KEY (или GOOGLE_API_KEY, или GEMINI_API_KEYS через запятую)
 //      MODEL_TEXT     — модель перевода, по умолчанию gemini-3.5-flash-lite (как в tlumach)
 //      OZV_PASSWORD   — тот же код доступа, что у озвучки (если задан)
-const LANGS = { ru: 'Russian', uk: 'Ukrainian' };
+const LANGS = { ru: 'Russian', uk: 'Ukrainian', de: 'German', en: 'English' };
 
 function keys() {
   const out = [];
@@ -58,16 +58,17 @@ module.exports = async function handler(req, res) {
   let b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
   b = b || {};
   const to = LANGS[b.to] ? b.to : 'ru';
+  const from = LANGS[b.from] ? b.from : 'de';
   const lines = Array.isArray(b.lines) ? b.lines.slice(0, 80).map(x => String(x || '').slice(0, 1000)) : [];
   if (!lines.length) return res.status(400).json({ error: 'Нет строк' });
   const context = Array.isArray(b.context) ? b.context.slice(0, 40).map(x => String(x || '').slice(0, 300)) : [];
 
   const prompt =
-    'You translate German study texts and dialogues for a language learner.\n' +
-    'Translate EACH line of the JSON array below from German into natural, simple ' + LANGS[to] + '.\n' +
+    'You translate study texts and dialogues for a language learner.\n' +
+    'Translate EACH line of the JSON array below from ' + LANGS[from] + ' into natural, simple ' + LANGS[to] + '.\n' +
     'Rules: keep the same number of items and the same order; one translation per item; ' +
-    'do not merge or split lines; keep names as they are; keep audio tags like [laughs] out of the translation; ' +
-    'if an item is already not German, still render it in ' + LANGS[to] + '. Return only a JSON array of strings.\n' +
+    'do not merge or split lines; keep names as they are; leave audio tags like [laughs] out of the translation; ' +
+    'if an item is not in ' + LANGS[from] + ', still render it in ' + LANGS[to] + '. Return only a JSON array of strings.\n' +
     (context.length ? 'Earlier lines of the same text, for context only (do not translate): ' + JSON.stringify(context) + '\n' : '') +
     'Lines: ' + JSON.stringify(lines);
 

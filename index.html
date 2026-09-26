@@ -214,7 +214,7 @@ select.inp{appearance:auto}
   <section class="tab on" id="tab-text">
     <div class="spks" id="spks"></div>
     <div class="tbar">
-      <select class="mini" id="trLang" aria-label="Язык перевода"><option value="ru">DE → RU</option><option value="uk">DE → UA</option></select>
+      <select class="mini" id="trLang" aria-label="Направление перевода"><option value="de>ru">DE → RU</option><option value="de>uk">DE → UA</option><option value="ru>de">RU → DE</option><option value="uk>de">UA → DE</option></select>
       <button class="btn mini ico" data-go="trAll" id="trAllBtn" aria-label="Перевести все строки" title="Перевести все строки"><svg class="ic" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 512 448.012"><path fill="#424C57" fill-rule="nonzero" d="M386.912 404.082c-31.653 27.804-68.134 42.5-104.037 43.83-37.327 1.383-73.956-11.673-103.851-39.445l-15.148-14.072-54.139-44.075h-48.07c-25.406 0-43.633-20.936-46.214-46.212L.195 154.71c-2.581-25.279 20.879-48.258 46.214-46.215l189.276 15.258c25.335 2.042 46.214 20.793 46.214 46.215v134.14c0 25.418-20.805 46.212-46.214 46.212h-59.323l4.221 47.53 4.398 2.497c33.226 18.862 65.806 26.928 96.721 22.849 28.258-3.73 55.317-17.66 80.412-42.828l-15.449-13.603 64.278-14.309-7.532 67.307-16.499-15.681z"/><path fill="#337EC6" d="M276.315 73.91l113.118-9.119-30.176-17.127c-33.228-18.859-65.809-26.927-96.721-22.848-28.26 3.73-55.319 17.66-80.414 42.827l15.449 13.604-64.277 14.309 7.533-67.307 16.498 15.682C188.979 16.128 225.46 1.43 261.363.099c37.327-1.382 73.956 11.673 103.851 39.446l26.942 25.027 73.434-5.92c25.335-2.042 48.796 20.936 46.215 46.216l-15.258 149.397c-2.581 25.277-20.808 46.212-46.215 46.212h-50.099l-71.815 58.466 5.19-58.466h-57.293c-25.411 0-46.216-20.793-46.216-46.212V120.126c0-25.422 20.881-44.173 46.216-46.216z"/><path fill="#fff" d="M84.246 173.714h43.841v-12.353h19.585v12.353h44.001v20.281h-9.033c-1.629 12.811-5.21 23.368-11.297 34.746-5.149 9.611-11.796 18.87-19.516 27.744 12.32 14.735 27.616 27.554 45.826 39.24l-10.073 15.701c-19.119-12.267-35.356-25.774-48.699-41.332-11.936 11.547-25.496 22.303-39.7 32.127l-10.588-15.325c14.055-9.725 27.407-20.347 38.896-31.672-10.588-15.493-18.697-32.88-24.308-52.875l17.968-5.038c4.601 16.401 11.052 30.837 19.344 43.759 5.657-6.848 10.548-13.876 14.412-21.092 4.74-8.866 7.286-16.196 8.89-25.983H84.246v-20.281zM398.456 215.314h-55.931l-7.357 25.09h-27.814c11.988-31.729 25.831-69.829 37.825-101.573 4.318-11.466 9.234-30.467 24.943-30.467 16.284 0 21.691 17.409 26.222 29.436l38.4 103.122h-28.708l-7.58-25.608zm-6-24.398l-21.893-57.703-21.971 57.703h43.864z"/></svg><span id="trProg"></span></button>
       <button class="btn mini" data-go="ltAll" id="ltBtn">✓ Ошибки</button>
       <button class="tgl" id="ltAuto" data-go="ltAutoTgl">Авто</button>
@@ -375,7 +375,17 @@ select.inp{appearance:auto}
       </div>
       <div class="hint" id="sizeInfo"></div>
     </div>
-    <div class="row views" style="margin-bottom:10px"><span class="hint" style="margin:0">В готовой странице по умолчанию:</span><button class="tgl" data-view="tr">Перевод</button><button class="tgl" data-view="marker">Маркер</button></div>
+    <div class="box">
+      <h2>Вид готовой страницы</h2>
+      <div class="row" id="layPick">
+        <button class="tgl" data-lay="plain">Лист текста</button>
+        <button class="tgl" data-lay="chat">Чат</button>
+        <button class="tgl" data-lay="cards">Карточки</button>
+      </div>
+      <p class="hint" id="layHint"></p>
+      <div class="row views"><span class="hint" style="margin:0">Открывать с показанным:</span><button class="tgl" data-view="trOut">Перевод</button><button class="tgl" data-view="markerOut">Маркер</button></div>
+      <p class="hint">Если перевод скрыт, у каждой реплики есть глаз — открыть перевод только этой фразы.</p>
+    </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <strong>Как будет выглядеть</strong>
       <button class="btn" data-go="preview">Обновить</button>
@@ -412,7 +422,20 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln.act .t{background-image:linear-gradient(var(--m),var(--m));background-repeat:no-repeat;background-size:var(--p,0%) 100%}
 .ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 8%,transparent)}
 .ln.silent{cursor:default}
-body.notr .tr{display:none}
+.ctl{float:right;display:inline-flex;gap:2px;margin:0 0 2px 8px}
+.ctl button,.ctl .ic{border:0;background:transparent;font-size:15px;line-height:1;padding:6px;border-radius:8px;opacity:.6;color:inherit}
+.ctl button.on{opacity:1;background:color-mix(in srgb,var(--c,#FFD84D) 22%,transparent)}
+.ln .tr{display:none}
+body:not(.notr) .ln:not(.flip) .tr{display:block}
+body.notr .ln.flip .tr{display:block}
+/* вид «чат» */
+body.lay-chat .ln{max-width:88%;background:color-mix(in srgb,var(--c) 10%,var(--bar));border:1px solid color-mix(in srgb,var(--c) 22%,transparent);border-radius:16px 16px 16px 5px;padding:10px 12px;margin:0 0 10px}
+body.lay-chat .ln.me{margin-left:auto;border-radius:16px 16px 5px 16px}
+body.lay-chat .hd2{display:block;width:fit-content;margin:22px auto 12px}
+/* вид «карточки» */
+body.lay-cards .ln{background:var(--bar);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin:0 0 10px}
+body.lay-cards .ln .tr{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
+body.lay-cards .hd2{margin-top:20px}
 body.nomk .ln.act .t{background-image:none}
 body.nomk .ln.act{background:none}
 body.hide .t{filter:blur(6px)}
@@ -455,6 +478,8 @@ function src(id){
   return Promise.resolve(srcCache[id]=s);
 }
 var box=document.getElementById('txt'), els=[];
+document.body.classList.add('lay-'+(V.layout||'plain'));
+var side={};(D.speakers||[]).forEach(function(s,i){side[s.id]=i%2===1;});
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 var curHeadColor=null;
 L.forEach(function(l,i){
@@ -471,9 +496,15 @@ L.forEach(function(l,i){
     el.style.setProperty('--m','color-mix(in srgb,'+c+' 38%,transparent)');
     var playable=l.clip&&AU[l.clip] || (hasMain&&l.start!=null);
     if(!playable)el.classList.add('silent');
-    el.innerHTML=(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+esc(l.text)+'</span>'+(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+esc(l.text)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    if(sp&&side[l.spk])el.classList.add('me');
     (function(idx){
-      el.addEventListener('click',function(){playLine(idx);});
+      el.addEventListener('click',function(e){
+        var eye=e.target.closest&&e.target.closest('.eye');
+        if(eye){e.stopPropagation();el.classList.toggle('flip');eye.classList.toggle('on',el.classList.contains('flip')!==!document.body.classList.contains('notr'));return;}
+        playLine(idx);
+      });
       el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();playLine(idx);}});
     })(i);
   }
@@ -612,7 +643,9 @@ $('o-sp').addEventListener('click',function(){P.speed=speeds[(speeds.indexOf(P.s
 $('o-lp').addEventListener('click',function(){P.loop=!P.loop;saveP();ui();});
 $('o-ap').addEventListener('click',function(){P.apause=!P.apause;saveP();ui();});
 $('o-hd').addEventListener('click',function(){P.hide=!P.hide;saveP();ui();});
-$('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();ui();});
+$('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
+  els.forEach(function(e){if(e&&e.classList){e.classList.remove('flip');var b=e.querySelector('.eye');if(b)b.classList.remove('on');}});
+  ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 if(!hasMain&&nextClip(0)<0)$('pl').hidden=true;
 ui();
@@ -632,7 +665,7 @@ const fmtS=t=>{if(!isFinite(t))t=0;const m=Math.floor(t/60),s=Math.floor(t%60);r
 const fmtMB=b=>(b/1048576).toFixed(b<10485760?1:0)+' МБ';
 
 /* ---------- state ---------- */
-const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true},ltAuto:true});
+const blank=()=>({v:2,key:uid(),title:'',subtitle:'',fname:'',offset:0.25,main:null,speakers:[],lines:[],el:null,trLang:'ru',view:{tr:true,marker:true,trOut:false,markerOut:true,layout:'plain'},ltAuto:true,trDir:'de>ru'});
 let S=blank();
 const A={}; // id -> {blob,url} | {remote}
 function srcOf(id){const a=A[id];if(!a)return null;return a.remote||a.url||null;}
@@ -768,7 +801,7 @@ function renderLines(){
       (head?'':'<button class="ib" data-act="play" aria-label="Прослушать">▶</button>')+
       '<button class="ib" data-act="more" aria-label="Действия">⋮</button></div>'+
       '<div class="ta">'+hlHTML(l)+'<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea></div>'+
-      (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="Перевод ('+(S.trLang==='uk'?'укр.':'рус.')+')">'+esc(l.tr)+'</textarea></div>':'')+
+      (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="'+(trDir()[0]==='de'?'Перевод ('+LANG_SHORT[trDir()[1]]+')':'Исходный текст ('+LANG_SHORT[trDir()[0]]+')')+'">'+esc(l.tr)+'</textarea></div>':'')+
       (LT[l.id]&&LT[l.id].length?'<div class="lt">'+LT[l.id].map((m,n)=>'<div class="i"><span class="w">'+esc(l.text.substr(m.o,m.l)||'—')+'</span>'+(m.llm?'<span class="m" style="flex-basis:auto">✨</span>':'')+m.reps.map(r=>'<button class="rep" data-act="ltfix" data-n="'+n+'" data-r="'+esc(r)+'">'+esc(r)+'</button>').join('')+'<button class="skip" data-act="ltskip" data-n="'+n+'">пропустить</button><span class="m">'+esc(m.why||m.msg||m.full)+'</span></div>').join('')+'</div>':'')+
       (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
       '</div>';
@@ -790,7 +823,7 @@ function hlHTML(l){
 function autosize(t){t.style.height='auto';t.style.height=t.scrollHeight+'px';}
 $('lines').addEventListener('input',e=>{
   const t=e.target.closest('textarea[data-f]');if(!t)return;
-  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=S.trLang||'ru';else{if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}ltSchedule();}autosize(t);save();
+  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=trDir()[1]==='de'?trDir()[0]:trDir()[1];else{if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}ltSchedule();}autosize(t);save();
 });
 $('lines').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
@@ -819,7 +852,7 @@ $('lines').addEventListener('click',async e=>{
       items.push({k:'clipf',icon:'🎵',label:l.clip?'Заменить свой клип (файл)':'Свой клип (файл)'});
       items.push({k:'clipu',icon:'🔗',label:'Свой клип по ссылке'});
       items.push({k:'lt',icon:'✓',label:'Проверить орфографию'});
-      items.push({k:'tr',icon:'文',label:(l.tr?'Перевести заново':'Перевести строку')+' ('+(S.trLang==='uk'?'укр.':'рус.')+')'});
+      items.push({k:'tr',icon:'文',label:(l.tr?'Перевести заново':'Перевести строку')+' ('+$('trLang').selectedOptions[0].text+')'});
       if(l.start!=null)items.push({k:'untime',icon:'⏱',label:'Стереть метку времени'});
     }else items.push({k:'col',icon:'●',label:'Цвет заголовка'});
     items.push({k:'type',icon:'↔',label:head?'Сделать репликой':'Сделать заголовком'});
@@ -864,7 +897,7 @@ function parseText(txt){
     let tr='';const bar=t.indexOf(' | ');if(bar>0){tr=t.slice(bar+3).trim();t=t.slice(0,bar).trim();}
     let sp=null;const m=t.match(NAME_RE);
     if(m){sp=spkByName(m[1].trim()).id;t=m[2].trim();}
-    out.push(newLine({spk:sp,text:t,tr,trLang:tr?(S.trLang||'ru'):undefined}));
+    out.push(newLine({spk:sp,text:t,tr,trLang:tr?(trDir()[1]==='de'?trDir()[0]:trDir()[1]):undefined}));
   });
   return out;
 }
@@ -1389,10 +1422,28 @@ function panel(title,html){
 
 
 /* ---------- вид: перевод и маркер ---------- */
-function viewS(){if(!S.view)S.view={tr:true,marker:true};return S.view;}
+function viewS(){
+  if(!S.view)S.view={};
+  const v=S.view;
+  if(v.tr===undefined)v.tr=true;
+  if(v.marker===undefined)v.marker=true;
+  if(v.trOut===undefined)v.trOut=false;
+  if(v.markerOut===undefined)v.markerOut=v.marker!==false;
+  if(!v.layout)v.layout='plain';
+  return S.view;
+}
+const LAY_HINT={plain:'Сплошной текст, как в книге.',chat:'Реплики пузырями, говорящие по разным сторонам, у каждого свой цвет.',cards:'Каждая реплика отдельной плашкой с цветной полосой говорящего.'};
+function trDir(){
+  if(!S.trDir)S.trDir=(S.trLang==='uk'?'de>uk':'de>ru');
+  if(!/^(de|ru|uk)>(de|ru|uk)$/.test(S.trDir))S.trDir='de>ru';
+  return S.trDir.split('>');
+}
+const LANG_SHORT={de:'нем.',ru:'рус.',uk:'укр.'};
 function paintView(){
   const v=viewS();
   document.querySelectorAll('[data-view]').forEach(b=>{const on=!!v[b.dataset.view];b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+  document.querySelectorAll('[data-lay]').forEach(b=>{const on=v.layout===b.dataset.lay;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+  $('layHint').textContent=LAY_HINT[v.layout]||'';
   document.body.classList.toggle('notr',!v.tr);
   document.body.classList.toggle('nomk',!v.marker);
 }
@@ -1402,13 +1453,14 @@ document.addEventListener('click',e=>{
   if(!v.tr){} else $('lines').querySelectorAll('textarea.tr').forEach(autosize);
   if(tab==='done')preview();
 });
-$('trLang').addEventListener('change',e=>{S.trLang=e.target.value;renderLines();save();});
+$('layPick').addEventListener('click',e=>{const b=e.target.closest('[data-lay]');if(!b)return;viewS().layout=b.dataset.lay;paintView();save();if(tab==='done')preview();});
+$('trLang').addEventListener('change',e=>{S.trDir=e.target.value;renderLines();save();});
 
 /* ---------- перевод (Gemini) ---------- */
-async function trApi(lines,context){
+async function trApi(lines,context,from,to){
   for(let t=0;t<2;t++){
     let r;
-    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,to:S.trLang||'ru'})});}
+    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,from,to})});}
     catch(e){throw new Error('нет связи с сервером');}
     let j={};try{j=await r.json();}catch(e){}
     if(r.ok){console.log('перевод: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.tr;}
@@ -1422,20 +1474,28 @@ async function trApi(lines,context){
 let trBusy=false;
 async function trLines(idx,quiet){
   if(trBusy){toast('Перевод уже идёт…');return;}
-  idx=idx.filter(i=>S.lines[i]&&S.lines[i].type!=='head'&&S.lines[i].text.trim());
+  const [from,to]=trDir(),back=to==='de';
+  idx=idx.filter(i=>S.lines[i]&&S.lines[i].type!=='head'&&(S.lines[i].text.trim()||S.lines[i].tr.trim()));
   if(!idx.length){toast('Нечего переводить.');return;}
   trBusy=true;const btn=$('trAllBtn');btn.disabled=true;
-  const lang=S.trLang||'ru';let done=0;
+  let done=0;
+  const srcOf=i=>{const l=S.lines[i];return back&&l.tr.trim()&&l.trLang===from?l.tr.trim():l.text.trim();};
   try{
     for(let k=0;k<idx.length;k+=40){
       const part=idx.slice(k,k+40);
       $('trProg').textContent=Math.min(k+part.length,idx.length)+'/'+idx.length;
       const ctx=S.lines.slice(Math.max(0,part[0]-6),part[0]).filter(l=>l.type!=='head').map(l=>l.text.trim()).filter(Boolean);
-      const out=await trApi(part.map(i=>S.lines[i].text.trim().replace(/\[[^\]]*\]\s*/g,'')),ctx);
-      part.forEach((i,n)=>{S.lines[i].tr=out[n]||'';S.lines[i].trLang=lang;});done+=part.length;
-      save();
+      const out=await trApi(part.map(i=>srcOf(i).replace(/\[[^\]]*\]\s*/g,'')),ctx,from,to);
+      part.forEach((i,n)=>{
+        const l=S.lines[i],res=out[n]||'';
+        if(!res)return;
+        if(back){const src=srcOf(i);l.tr=src;l.trLang=from;l.text=res;delete LT[l.id];}
+        else{l.tr=res;l.trLang=to;}
+      });
+      done+=part.length;save();
     }
     if(!viewS().tr){viewS().tr=true;paintView();}
+    if(back)ltSchedule(1500);
     toast(idx.length===1?'Строка переведена':'Переведено строк: '+done);
   }catch(e){
     const rest=idx.slice(done);
@@ -1446,16 +1506,16 @@ async function trLines(idx,quiet){
   trBusy=false;btn.disabled=false;$('trProg').textContent='';renderLines();
 }
 async function trAll(){
-  const lang=S.trLang||'ru';
-  const all=S.lines.map((l,i)=>i).filter(i=>S.lines[i].type!=='head'&&S.lines[i].text.trim());
-  const empty=all.filter(i=>!S.lines[i].tr||(S.lines[i].trLang&&S.lines[i].trLang!==lang));
+  const [from,to]=trDir(),back=to==='de';
+  const all=S.lines.map((l,i)=>i).filter(i=>S.lines[i].type!=='head'&&(S.lines[i].text.trim()||S.lines[i].tr.trim()));
   if(!all.length){toast('Нет текста.');return;}
-  let pick=empty;
-  if(empty.length<all.length){
-    const k=await sheet('Перевод на '+(lang==='uk'?'украинский':'русский'),[
-      ...(empty.length?[{k:'empty',icon:'文',label:'Только без перевода ('+empty.length+')'}]:[]),
+  const fresh=all.filter(i=>{const l=S.lines[i];return back?!(l.tr.trim()&&l.trLang===from):!(l.tr.trim()&&l.trLang===to);});
+  let pick=fresh;
+  if(fresh.length<all.length){
+    const k=await sheet($('trLang').selectedOptions[0].text,[
+      ...(fresh.length?[{k:'fresh',icon:'文',label:'Только новые ('+fresh.length+')'}]:[]),
       {k:'all',icon:'⟲',label:'Все строки заново ('+all.length+')'},{k:null,icon:'✕',label:'Отмена'}]);
-    if(!k)return;pick=k==='all'?all:empty;
+    if(!k)return;pick=k==='all'?all:fresh;
   }
   trLines(pick);
 }
@@ -1619,7 +1679,7 @@ function ltSchedule(ms){
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:viewS(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
 }
 async function buildHTML(embed){
   const au={};
@@ -1866,7 +1926,7 @@ $('fname').addEventListener('focus',e=>{if(!e.target.value)e.target.placeholder=
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNow();});
 
 function renderAll(){
-  paintView();ltPaintAuto();$('trLang').value=S.trLang||'ru';
+  paintView();ltPaintAuto();trDir();$('trLang').value=S.trDir;
   $('title').value=S.title||'';$('subtitle').value=S.subtitle||'';$('fname').value=S.fname||'';
   renderSpeakers();renderLines();renderAudio();
   if(tab==='sync')renderSync();
