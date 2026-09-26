@@ -119,11 +119,19 @@ module.exports = async function handler(req, res) {
       const j = r.j || {};
       (j.explain || []).forEach(x => { if (x && Number.isInteger(x.i)) why[x.i] = String(x.why || '').slice(0, 300); });
       fp = (j.falsePositives || []).filter(Number.isInteger);
-      extra = (j.extra || []).filter(x => x && x.quote && text.includes(x.quote)).slice(0, 20)
-        .map(x => ({ quote: String(x.quote).slice(0, 120), fix: String(x.fix || '').slice(0, 200), why: String(x.why || '').slice(0, 300) }));
+      // позицию ищем на сервере: у клиента одна и та же цитата иначе всплывает в каждой строке
+      extra = (j.extra || []).map(x => {
+        if (!x || !x.quote) return null;
+        const q = String(x.quote).slice(0, 120);
+        const at = text.indexOf(q);
+        if (at < 0) return null;
+        return { quote: q, at, fix: String(x.fix || '').slice(0, 200), why: String(x.why || '').slice(0, 300) };
+      }).filter(Boolean).slice(0, 20);
       if (typeof j.corrected === 'string') corrected = j.corrected.slice(0, 20000);
     }
   }
   if (ltFailed && llmFailed) return res.status(502).json({ error: 'Проверка не сработала. ' + ltFailed + '; Gemini: ' + llmFailed });
   return res.status(200).json({ matches, why, fp, extra, corrected, ltFailed, llmFailed, model });
 };
+
+module.exports.config = { maxDuration: 60 };

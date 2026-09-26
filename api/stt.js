@@ -105,3 +105,5 @@ module.exports = async function handler(req, res) {
     : raw;
   return res.status(502).json({ error: msg, raw, tried });
 };
+
+module.exports.config = { maxDuration: 60 };

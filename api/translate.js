@@ -143,3 +143,5 @@ module.exports = async function handler(req, res) {
     : /api key|permission|unauthenticated/i.test(raw) ? 'Ключ Gemini не работает: ' + raw : raw;
   return res.status(502).json({ error: msg, raw, tried });
 };
+
+module.exports.config = { maxDuration: 60 };

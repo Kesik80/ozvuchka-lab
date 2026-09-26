@@ -73,7 +73,7 @@ audio{width:100%;margin-top:8px}
 .tm{margin-left:auto;display:inline-flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tm button{border:1px solid var(--line);background:transparent;border-radius:8px;min-width:30px;height:30px;padding:0 6px}
 .tm .t0{border:0;padding:0 4px;min-width:auto}
-.card textarea{display:block;width:100%;border:0;background:transparent;resize:none;padding:4px 2px;overflow:hidden;line-height:1.45}
+.card textarea{display:block;width:100%;border:0;background:transparent;resize:none;padding:4px 2px;overflow:hidden;line-height:1.45;overflow-wrap:break-word}
 .card textarea.txt{font:17px/1.5 var(--read)}
 .card.head textarea.txt{font:600 14px/1.4 var(--ui);letter-spacing:.04em;color:var(--c,var(--ink))}
 .card textarea.tr{font-size:14px;color:var(--muted);border-top:1px dashed var(--line);margin-top:2px}
@@ -123,7 +123,6 @@ audio{width:100%;margin-top:8px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .mood{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 12px;min-height:40px}
 .mood.on{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
-.chips.off .mood{opacity:.45}
 code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
 .sl{display:block;margin:12px 0}
 .sl b{color:var(--accent)}
@@ -155,7 +154,6 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 #tab-audio.isv3 .only-classic{display:none!important}
 #tab-audio:not(.isv3) .only-v3{display:none!important}
 #tab-audio.isv2 .only-cl-lang{display:none!important}
-.tbar{margin-bottom:10px}
 .tbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .tbar .sep{flex-basis:100%;height:0}
 .mini{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 10px;min-height:38px;font-size:14px;font-weight:500}
@@ -173,7 +171,6 @@ body.nomk .card.cur{box-shadow:none}
 body.notr .card textarea.tr{display:none}
 .card .trb{display:flex;align-items:flex-start}
 .card .trb textarea{flex:1}
-.card .trb .ib{width:34px;height:34px;font-size:15px;color:var(--muted)}
 .lt{margin-top:6px;border-top:1px dashed var(--line);padding-top:6px}
 .lt .i{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding:4px 0}
 .lt .w{color:var(--danger);font-weight:700;text-decoration:underline wavy}
@@ -529,6 +526,7 @@ L.forEach(function(l,i){
     var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
     el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
     if(sp&&side[l.spk])el.classList.add('me');
+    if(l.tr&&V.tr!==false){var eb=el.querySelector('.eye');if(eb)eb.classList.add('on');}
     (function(idx){
       el.addEventListener('click',function(e){
         var eye=e.target.closest&&e.target.closest('.eye');
@@ -619,11 +617,14 @@ if(hasG){
     else if(tipFor===w)hideTip();
     else showTip(w);
   },true);
+  var eatClick=false;
   box.addEventListener('touchstart',function(e){
     var w=e.target.closest('w');if(!w)return;
-    clearTimeout(pressT);pressT=setTimeout(function(){showTip(w);},450);
+    clearTimeout(pressT);pressT=setTimeout(function(){eatClick=true;showTip(w);},450);
   },{passive:true});
   ['touchend','touchmove','touchcancel'].forEach(function(ev){box.addEventListener(ev,function(){clearTimeout(pressT);},{passive:true});});
+  // после долгого нажатия строка не должна ещё и заиграть
+  box.addEventListener('click',function(e){if(eatClick){eatClick=false;e.stopPropagation();e.preventDefault();}},true);
   if(matchMedia('(hover:hover)').matches){
     box.addEventListener('mouseover',function(e){var w=e.target.closest('w');if(w)showTip(w);});
     box.addEventListener('mouseout',function(e){if(e.target.closest('w'))hideTip();});
@@ -713,7 +714,7 @@ $('o-lp').addEventListener('click',function(){P.loop=!P.loop;saveP();ui();});
 $('o-ap').addEventListener('click',function(){P.apause=!P.apause;saveP();ui();});
 $('o-hd').addEventListener('click',function(){P.hide=!P.hide;saveP();ui();});
 $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
-  els.forEach(function(e){if(e&&e.classList){e.classList.remove('flip');var b=e.querySelector('.eye');if(b)b.classList.remove('on');}});
+  els.forEach(function(e){if(e&&e.classList){e.classList.remove('flip');var b=e.querySelector('.eye');if(b)b.classList.toggle('on',P.tr);}});
   ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 $('o-wd').addEventListener('click',function(){P.words=!P.words;hideTip();saveP();ui();});
@@ -856,12 +857,22 @@ function lineColor(i){
   if(l.type==='head')return l.color||'#1E2A44';
   const s=spk(l.spk);return s?s.color:null;
 }
+function keepFocus(fn){
+  const ae=document.activeElement;
+  const card=ae&&ae.closest?ae.closest('#lines .card'):null;
+  if(!card||!ae.dataset||!ae.dataset.f){fn();return;}
+  const i=card.dataset.i,f=ae.dataset.f,s=ae.selectionStart,e2=ae.selectionEnd,sc=window.scrollY;
+  fn();
+  const t=$('lines').querySelector('.card[data-i="'+i+'"] textarea[data-f="'+f+'"]');
+  if(t){t.focus({preventScroll:true});try{t.setSelectionRange(s,e2);}catch(err){}window.scrollTo(0,sc);}
+}
 function renderLines(){
   const box=$('lines');
   if(!S.lines.length){
     box.innerHTML='<div class="empty">Текста пока нет.<br>Вставь диалог целиком: строки вида «Anna: Hallo!» сами разойдутся по говорящим.<br><button class="btn pri" data-go="bulk">Вставить текст</button></div>';
     return;
   }
+  const NB=neighbourMap(),SE=elS();
   box.innerHTML=S.lines.map((l,i)=>{
     const c=lineColor(i),head=l.type==='head',s=spk(l.spk);
     const time=head?'':'<span class="tm">'+(l.start!=null?'<button data-act="nudge" data-d="-0.1" aria-label="Раньше">−</button>':'')+'<button class="t0" data-act="play">'+fmtT(l.start)+'</button>'+(l.start!=null?'<button data-act="nudge" data-d="0.1" aria-label="Позже">+</button>':'')+'</span>';
@@ -873,11 +884,13 @@ function renderLines(){
       '<div class="ta">'+hlHTML(l)+'<textarea class="txt" data-f="text" rows="1" placeholder="'+(head?'GESTERN':'Текст реплики')+'">'+esc(l.text)+'</textarea></div>'+
       (!head?'<div class="trb"><textarea class="tr" data-f="tr" rows="1" placeholder="'+(trDir()[0]==='de'?'Перевод ('+LANG_SHORT[trDir()[1]]+')':'Исходный текст ('+LANG_SHORT[trDir()[0]]+')')+'">'+esc(l.tr)+'</textarea></div>':'')+
       (LT[l.id]&&LT[l.id].length?'<div class="lt">'+LT[l.id].map((m,n)=>'<div class="i"><span class="w">'+esc(l.text.substr(m.o,m.l)||'—')+'</span>'+(m.llm?'<span class="m" style="flex-basis:auto">✨</span>':'')+m.reps.map(r=>'<button class="rep" data-act="ltfix" data-n="'+n+'" data-r="'+esc(r)+'">'+esc(r)+'</button>').join('')+'<button class="skip" data-act="ltskip" data-n="'+n+'">пропустить</button><span class="m">'+esc(m.why||m.msg||m.full)+'</span></div>').join('')+'</div>':'')+
-      (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
+      (l.clip?'<div class="clipbar">'+(l.gen?(l.gen===ttsSig(l,SE,i,NB)?'🗣 ElevenLabs':'<span class="warn">🗣 текст или голос изменились</span><button class="x" style="color:var(--accent)" data-act="retts">переозвучить</button>'):'🎵 свой клип'+(A[l.clip]&&A[l.clip].remote?' (ссылка)':''))+'<button class="x" data-act="clipx">убрать</button></div>':'')+
       '</div>';
   }).join('');
   box.querySelectorAll('textarea').forEach(autosize);
 }
+const renderLinesRaw=renderLines;
+function renderLinesKeep(){keepFocus(renderLinesRaw);}
 function hlHTML(l){
   const ms=(LT[l.id]||[]).slice().sort((a,b)=>a.o-b.o);
   if(!ms.length)return '';
@@ -893,7 +906,15 @@ function hlHTML(l){
 function autosize(t){t.style.height='auto';t.style.height=t.scrollHeight+'px';}
 $('lines').addEventListener('input',e=>{
   const t=e.target.closest('textarea[data-f]');if(!t)return;
-  const i=+t.closest('.card').dataset.i;S.lines[i][t.dataset.f]=t.value;if(t.dataset.f==='tr')S.lines[i].trLang=trDir()[1]==='de'?trDir()[0]:trDir()[1];else{if(LT[S.lines[i].id]){delete LT[S.lines[i].id];ltPaint();}ltSchedule();}autosize(t);save();
+  const card=t.closest('.card'),i=+card.dataset.i,l=S.lines[i];
+  l[t.dataset.f]=t.value;
+  if(t.dataset.f==='tr')l.trLang=trDir()[1]==='de'?trDir()[0]:trDir()[1];
+  else{
+    if(LT[l.id]){delete LT[l.id];ltPaint();}
+    const hl=card.querySelector('.hl');if(hl)hl.remove();   // подчёркивания больше не про этот текст
+    ltSchedule();
+  }
+  autosize(t);save();
 });
 $('lines').addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
@@ -1029,14 +1050,15 @@ function renderAudio(){
   const has=!!(S.main&&A[S.main]);
   $('mainRemove').hidden=!has;
   const p=$('mainPlayer');
-  if(has){if(p.dataset.id!==S.main){p.src=srcOf(S.main);p.dataset.id=S.main;}p.hidden=false;}
-  else{p.removeAttribute('src');p.dataset.id='';p.hidden=true;}
+  if(has){if(p.dataset.id!==S.main){mainDur='';p.src=srcOf(S.main);p.dataset.id=S.main;}p.hidden=false;}
+  else{p.removeAttribute('src');p.dataset.id='';p.hidden=true;mainDur='';}
   const a=has&&A[S.main];
-  $('mainInfo').textContent=!has?'Дорожка не выбрана.':a.remote?'Ссылка (встроить в страницу не получится): '+a.remote:'Файл в проекте, '+fmtMB(a.blob.size)+'.';
+  $('mainInfo').textContent=!has?'Дорожка не выбрана.':a.remote?'Ссылка (встроить в страницу не получится): '+a.remote:'Файл в проекте, '+fmtMB(a.blob.size)+'.'+mainDur;
   const clips=S.lines.filter(l=>l.clip&&A[l.clip]);
   $('clipInfo').textContent=clips.length?'Строк со своим клипом: '+clips.length+'.':'Пока ни одного.';
 }
-$('mainPlayer').addEventListener('loadedmetadata',()=>{const d=$('mainPlayer').duration;if(isFinite(d))$('mainInfo').textContent+=' Длина '+fmtS(d)+'.';});
+let mainDur='';
+$('mainPlayer').addEventListener('loadedmetadata',()=>{const d=$('mainPlayer').duration;mainDur=isFinite(d)?' Длина '+fmtS(d)+'.':'';renderAudio();});
 
 /* ---------- sync ---------- */
 let syncPos=0,syncOn=false;
@@ -1194,7 +1216,7 @@ async function loadQuota(){
     paintQuota();
   }catch(e){QUOTA=null;$('qNums').textContent='не удалось узнать: '+e.message;}
 }
-function needChars(){let n=0;ttsNeed(false).forEach(i=>{const l=S.lines[i],v=voiceFor(l);if(v)n+=buildReq(i,v,elS()).text.length;});return n;}
+function needChars(){let n=0;const NB=neighbourMap(),SE=elS();ttsNeed(false).forEach(i=>{const v=voiceFor(S.lines[i]);if(v)n+=buildReq(i,v,SE,NB).text.length;});return n;}
 function paintQuota(){
   if(!QUOTA)return;
   const q=QUOTA,accs=q.keys||[],many=accs.length>1,need=needChars();
@@ -1311,7 +1333,13 @@ async function assignVoice(target){ // из меню говорящего на �
 }
 function voiceFor(l){const s=spk(l.spk);return (s&&s.voice)||elS().def||null;}
 function neighbour(i,dir){for(let j=i+dir;j>=0&&j<S.lines.length;j+=dir){const l=S.lines[j];if(l.type!=='head'&&l.text.trim())return l.text.trim();}return '';}
-function buildReq(i,v,e){
+// соседи всех строк за один проход — иначе каждый показ списка перебирает текст заново
+function neighbourMap(){
+  const ids=[];S.lines.forEach((l,i)=>{if(l.type!=='head'&&l.text.trim())ids.push(i);});
+  const nb={};ids.forEach((i,k)=>{nb[i]={p:k>0?S.lines[ids[k-1]].text.trim():'',n:k<ids.length-1?S.lines[ids[k+1]].text.trim():''};});
+  return nb;
+}
+function buildReq(i,v,e,nb){
   const l=S.lines[i],v3=e.model==='eleven_v3';
   let text=l.text.trim();
   if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
@@ -1319,12 +1347,13 @@ function buildReq(i,v,e){
   const pin=v.pin!=null?!!v.pin:v.key!=null;
   const r={a:'tts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
   if(e.seedOn)r.seed=e.seed;
-  if(!v3&&e.ctx){r.prev=neighbour(i,-1);r.next=neighbour(i,1);}
+  if(!v3&&e.ctx){const x=nb&&nb[i];r.prev=x?x.p:neighbour(i,-1);r.next=x?x.n:neighbour(i,1);}
   return r;
 }
-function ttsSig(l,e){
-  const i=S.lines.indexOf(l),v=voiceFor(l);if(!v||i<0)return null;
-  const r=buildReq(i,v,e||elS());delete r.a;delete r.key;delete r.prev;delete r.next;
+function ttsSig(l,e,i,nb){
+  if(i==null)i=S.lines.indexOf(l);
+  const v=voiceFor(l);if(!v||i<0)return null;
+  const r=buildReq(i,v,e||elS(),nb);delete r.a;delete r.key;delete r.prev;delete r.next;
   r.ctx=!!(e||elS()).ctx&&r.model!=='eleven_v3';
   return JSON.stringify(r);
 }
@@ -1398,10 +1427,10 @@ $('prList').addEventListener('click',e=>{
   }
 });
 function ttsNeed(force){
-  const need=[];
+  const need=[],NB=neighbourMap(),SE=elS();
   S.lines.forEach((l,i)=>{if(l.type==='head'||!l.text.trim())return;
     if(l.clip&&!l.gen)return; // свой загруженный клип не трогаем
-    if(!l.clip||force||l.gen!==ttsSig(l))need.push(i);});
+    if(!l.clip||force||l.gen!==ttsSig(l,SE,i,NB))need.push(i);});
   return need;
 }
 let ttsBusy=false,ttsStop=false;
@@ -1411,7 +1440,8 @@ async function ttsAll(force){
   if(!need.length){toast(S.lines.length?'Все строки уже озвучены.':'Нет текста для озвучки.');return;}
   const miss=[...new Set(need.filter(i=>!voiceFor(S.lines[i])).map(i=>{const s=spk(S.lines[i].spk);return s?s.name:'без говорящего';}))];
   if(miss.length){toast('Выбери голос: '+miss.join(', '));return;}
-  const chars=need.reduce((a,i)=>a+buildReq(i,voiceFor(S.lines[i]),elS()).text.length,0);
+  const NBc=neighbourMap(),SEc=elS();
+  const chars=need.reduce((a,i)=>a+buildReq(i,voiceFor(S.lines[i]),SEc,NBc).text.length,0);
   const k=await sheet('Озвучить строк: '+need.length+' (~'+nf(chars)+' символов)?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
   if(k!=='go')return;
   ttsBusy=true;ttsStop=false;$('ttsAllBtn').textContent='■ Стоп';$('ttsProg').classList.remove('warn');
@@ -1526,7 +1556,7 @@ document.addEventListener('click',e=>{
   if(tab==='done')preview();
 });
 $('layPick').addEventListener('click',e=>{const b=e.target.closest('[data-lay]');if(!b)return;viewS().layout=b.dataset.lay;paintView();save();if(tab==='done')preview();});
-$('trLang').addEventListener('change',e=>{S.trDir=e.target.value;renderLines();save();});
+$('trLang').addEventListener('change',e=>{S.trDir=e.target.value;renderLines();glossInfo();save();});
 
 /* ---------- перевод (Gemini) ---------- */
 async function trApi(lines,context,from,to){
@@ -1575,7 +1605,7 @@ async function trLines(idx,quiet){
     toast('Перевод не удался: '+e.message+(done?' (готово '+done+')':''),rest.length?'Ещё раз':null,()=>trLines(rest,quiet));
     return;
   }
-  trBusy=false;btn.disabled=false;$('trProg').textContent='';renderLines();
+  trBusy=false;btn.disabled=false;$('trProg').textContent='';renderLinesKeep();
 }
 async function trAll(){
   const [from,to]=trDir(),back=to==='de';
@@ -1690,7 +1720,11 @@ async function ltLines(idx,quiet){
           items.push(Object.assign({},m,{o:m.o-start+lead,why:why[gi]||''}));
         });
         (j.extra||[]).forEach(x=>{
-          const q=lineTxt.indexOf(x.quote);if(q<0)return;
+          let q;
+          if(Number.isInteger(x.at)){            // позиция от сервера — ровно та строка
+            if(x.at<start||x.at+x.quote.length>end)return;
+            q=x.at-start;
+          }else{q=lineTxt.indexOf(x.quote);if(q<0)return;}
           const o=q+lead;
           if(items.some(m=>o<m.o+m.l&&o+x.quote.length>m.o))return;
           items.push({o,l:x.quote.length,reps:x.fix&&x.fix!==x.quote?[x.fix]:[],msg:x.why||'',why:x.why||'',id:'llm',llm:true});
@@ -1699,29 +1733,29 @@ async function ltLines(idx,quiet){
         LT_TXT[l.id]=l.text;
         found+=LT[l.id].length;
       });
-      ltPaint();renderLines();
+      ltPaint();renderLinesKeep();
     }
     if(!quiet)toast(found?'Найдено замечаний: '+found+(warn?' · '+warn:''):(warn||'Ошибок не нашлось'));
     else if(warn)console.warn('проверка: '+warn);
   }catch(e){if(quiet)console.warn('проверка не удалась: '+e.message);else toast('Проверка не удалась: '+e.message);}
-  ltBusy=false;btn.disabled=false;ltPaint();renderLines();
+  ltBusy=false;btn.disabled=false;ltPaint();renderLinesKeep();
 }
 function ltPaint(){
   const n=S.lines.reduce((a,l)=>a+((LT[l.id]||[]).length),0);
-  $('ltBtn').textContent=n?'Ошибки: '+n:'Ошибки';
+  $('ltBtn').textContent=n?'✓ Ошибки: '+n:'✓ Ошибки';
 }
 function ltFix(i,n,rep){
   const l=S.lines[i],m=(LT[l.id]||[])[n];if(!m)return;
   l.text=l.text.slice(0,m.o)+rep+l.text.slice(m.o+m.l);
   const d=rep.length-m.l;
   LT[l.id]=LT[l.id].filter((x,k)=>k!==n).map(x=>x.o>m.o?Object.assign({},x,{o:x.o+d}):x);
-  renderLines();ltPaint();save();
+  renderLinesKeep();ltPaint();save();
 }
 function ltSkip(i,n){
   const l=S.lines[i],m=(LT[l.id]||[])[n];if(!m)return;
   (LT_SKIP[l.id]=LT_SKIP[l.id]||{})[ltKey(l.text,m)]=1;
   LT[l.id]=LT[l.id].filter((x,k)=>k!==n);
-  renderLines();ltPaint();
+  renderLinesKeep();ltPaint();
 }
 function ltAll(){ltLines(S.lines.map((l,i)=>i));}
 /* автопроверка: через 2,5 секунды после правки, не чаще раза в 8 секунд */
@@ -1769,15 +1803,30 @@ function wavFrom(buf,from,to,rate){
   }
   return new Blob([out.buffer],{type:'audio/wav'});
 }
+const STT_MAX=80*1024*1024;   // больше телефон не переварит при раскодировании
+const STT_OVER=3;             // нахлёст между частями, чтобы фраза на стыке не пропала
 async function sttParts(file){
   if(file.size<=STT_LIMIT)return [{blob:file,mime:file.type||'audio/mpeg',off:0}];
+  if(file.size>STT_MAX)throw new Error('запись слишком большая ('+fmtMB(file.size)+') — раздели её на части');
+  if(file.size>15*1024*1024){
+    const k=await sheet('Запись '+fmtMB(file.size)+'. Разбор займёт время, и телефону нужно много памяти.',[{k:'go',icon:'▶',label:'Всё равно разобрать'},{k:null,icon:'✕',label:'Отмена'}]);
+    if(k!=='go')throw new Error('отменено');
+  }
   $('sttProg').textContent='Готовлю запись к разбору…';
-  const AC=window.AudioContext||window.webkitAudioContext,ac=new AC();
-  const buf=await ac.decodeAudioData(await file.arrayBuffer());ac.close&&ac.close();
-  const rate=16000,secs=60,parts=[];
+  const rate=16000;
+  // раскодируем сразу в 16 кГц: памяти уходит почти втрое меньше, чем на 44,1 кГц
+  const OC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ac=OC?new OC(1,rate,rate):new AC();
+  let buf;
+  try{buf=await ac.decodeAudioData(await file.arrayBuffer());}
+  catch(e){throw new Error('не удалось раскодировать запись: '+(e.message||e));}
+  if(ac.close)try{ac.close();}catch(e){}
+  const secs=60,parts=[];
   for(let t=0;t<buf.duration;t+=secs){
-    const from=Math.floor(t*buf.sampleRate),to=Math.min(buf.length,Math.floor((t+secs)*buf.sampleRate));
-    parts.push({blob:wavFrom(buf,from,to,rate),mime:'audio/wav',off:t});
+    const from=Math.floor(Math.max(0,t-(t?STT_OVER:0))*buf.sampleRate),to=Math.min(buf.length,Math.floor((t+secs)*buf.sampleRate));
+    parts.push({blob:wavFrom(buf,from,to,rate),mime:'audio/wav',off:from/buf.sampleRate});
+    if(to>=buf.length)break;
   }
   return parts;
 }
@@ -1809,7 +1858,13 @@ async function stt(){
       const p=parts[n];
       const b64=(await blobToData(p.blob)).split(',')[1];
       const out=await sttApi({audio:b64,mime:p.mime,lang});
-      out.forEach(x=>got.push({spk:x.speaker||'',text:x.text,start:x.start!=null?Math.round((x.start+p.off)*100)/100:null}));
+      const norm=s=>String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
+      const tailTxt=got.slice(-4).map(g=>norm(g.text));
+      out.forEach(x=>{
+        const start=x.start!=null?Math.round((x.start+p.off)*100)/100:null;
+        if(n&&tailTxt.includes(norm(x.text)))return;   // фраза с нахлёста уже есть
+        got.push({spk:x.speaker||'',text:x.text,start});
+      });
     }
     if(!got.length){$('sttProg').textContent='Речи не нашлось.';toast('Речи в записи не нашлось');}
     else{
@@ -2090,6 +2145,14 @@ async function openFile(){
         const data=JSON.parse(d.textContent),am=JSON.parse(au.textContent);
         for(const id in am){const v=am[id];if(v.indexOf('data:')===0){const b=await dataToBlob(v);A[id]={blob:b,url:URL.createObjectURL(b)};idbPut('a:'+id,b).catch(console.error);}else A[id]={remote:v};}
         S=Object.assign(blank(),{key:data.key||uid(),title:data.title||'',subtitle:data.subtitle||'',main:data.main,speakers:data.speakers||[],lines:(data.lines||[]).map(l=>newLine(l))});
+        const dv=data.view||{};
+        S.view={tr:true,marker:true,gloss:true,trOut:!!dv.tr,markerOut:dv.marker!==false,layout:dv.layout||'plain'};
+        if(Array.isArray(data.gloss)){            // словарь возвращаем в вид «слово + предложение»
+          const g={};
+          S.lines.forEach((l,n)=>{const m=data.gloss[n];if(!m)return;const s=l.text.trim();
+            for(const w in m)g[glossKey(w,s)]={b:m[w].b||'',t:m[w].t||''};});
+          if(Object.keys(g).length)S.gloss=g;
+        }
         return afterLoad('Страница открыта для правки');
       }
       const p=legacyParse(text);
