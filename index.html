@@ -437,7 +437,7 @@ body .ln.kar.act w.now{background-image:linear-gradient(var(--m),var(--m));backg
 body.nomk .ln.kar w[data-k]{background-image:none}
 /* на читаемой строке цвет знакомости уступает маркеру, иначе два синих спорят */
 body.words .ln.kar.act w{background-color:transparent;box-shadow:none}
-.ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 8%,transparent)}
+body.lnbg .ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 10%,transparent)}
 .ln.silent{cursor:default}
 .ctl{float:right;display:inline-flex;gap:2px;margin:0 0 2px 8px}
 .ctl button,.ctl .ic{border:0;background:transparent;font-size:15px;line-height:1;padding:6px;border-radius:8px;opacity:.6;color:inherit}
@@ -474,7 +474,7 @@ body.lay-cards .ln{background:var(--bar);border:1px solid var(--line);border-lef
 body.lay-cards .ln .tr{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
 body.lay-cards .hd2{margin-top:20px}
 body.nomk .ln.act .t{background-image:none}
-body.nomk .ln.act{background:none}
+body.nomk.lnbg .ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 10%,transparent)}
 body.hide .t{filter:blur(6px)}
 body.hide .ln.act .t{filter:blur(3px)}
 .pl{position:fixed;left:0;right:0;bottom:0;background:var(--bar);border-top:1px solid var(--line);padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
@@ -499,7 +499,7 @@ var L=D.lines, SP={};
 (D.speakers||[]).forEach(function(s){SP[s.id]=s;});
 var V=D.view||{};
 var KEY='ozv:'+(D.key||'x')+':'+(V.tr===false?0:1)+(V.marker===false?0:1);
-var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false};
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv)for(var k in P)if(k in sv)P[k]=sv[k];}catch(e){}
 function saveP(){try{localStorage.setItem(KEY,JSON.stringify(P));}catch(e){}}
 var main=new Audio(), clip=new Audio();
@@ -778,6 +778,8 @@ function ui(){
   if(hasG&&P.words){wbarInit();wbar.hidden=false;wbarPaint();}else if(wbar)wbar.hidden=true;
   $('o-mk').classList.toggle('on',P.mk);
   document.body.classList.toggle('nomk',!P.mk);
+  $('o-bg').classList.toggle('on',P.bg);
+  document.body.classList.toggle('lnbg',P.bg);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
 }
@@ -848,6 +850,7 @@ $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
   els.forEach(function(e){if(e&&e.classList){e.classList.remove('flip');var b=e.querySelector('.eye');if(b)b.classList.toggle('on',P.tr);}});
   ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
+$('o-bg').addEventListener('click',function(){P.bg=!P.bg;saveP();ui();});
 $('o-wd').addEventListener('click',function(){P.words=!P.words;hideTip();saveP();ui();});
 if(!hasMain&&nextClip(0)<0){var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;if(!anyTr&&!hasG)$('pl').hidden=true;}
 ui();
@@ -2139,7 +2142,7 @@ async function buildHTML(embed){
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-wd">слова</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
