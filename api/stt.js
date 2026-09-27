@@ -3,6 +3,15 @@
 //      OZV_PASSWORD — тот же код доступа, что у озвучки
 const NAMES = { de: 'German', ru: 'Russian', uk: 'Ukrainian', en: 'English' };
 
+// запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
+async function fetchT(url, opt, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 25000);
+  try { return await fetch(url, Object.assign({}, opt, { signal: ctl.signal })); }
+  finally { clearTimeout(t); }
+}
+
+
 function keys() {
   const out = [];
   const add = v => { const k = String(v || '').trim(); if (k && !out.includes(k)) out.push(k); };
@@ -26,14 +35,14 @@ const SCHEMA = {
 };
 
 async function ask(key, model, mime, audio, prompt) {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: audio } }, { text: prompt }] }],
       generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
     }),
-  });
+  }, 45000);
   const txt = await r.text();
   if (!r.ok) {
     let m = 'Gemini ' + r.status;
@@ -56,8 +65,10 @@ module.exports = async function handler(req, res) {
 
   let b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
   b = b || {};
-  const audio = String(b.audio || '');
+  const audio = typeof b.audio === 'string' ? b.audio : '';
   if (!audio) return res.status(400).json({ error: 'Нет аудио' });
+  if (audio.length > 3500000) return res.status(413).json({ error: 'Кусок записи слишком большой', code: 'too_big' });
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(audio)) return res.status(400).json({ error: 'Аудио пришло не в base64', code: 'bad_audio' });
   const mime = /^audio\/[\w.+-]+$/.test(String(b.mime || '')) ? b.mime : 'audio/mpeg';
   const lang = NAMES[String(b.lang || '').slice(0, 2)] || null;
 
@@ -80,7 +91,7 @@ module.exports = async function handler(req, res) {
       for (let att = 0; att < 2 && !keyDead; att++) {
         try {
           const out = await ask(key, model, mime, audio, prompt);
-          const lines = (Array.isArray(out) ? out : []).map(x => ({
+          const lines = (Array.isArray(out) ? out : []).filter(x => x && typeof x === 'object').map(x => ({
             speaker: String(x.speaker || '').slice(0, 20),
             text: String(x.text || '').trim().slice(0, 1000),
             start: Number.isFinite(+x.start) ? Math.max(0, +x.start) : null,
@@ -89,6 +100,8 @@ module.exports = async function handler(req, res) {
           return res.status(200).json({ lines, model, tried });
         } catch (e) {
           last = e; tried.push(model + ' → ' + (e.status || '?') + ' ' + String(e.message).slice(0, 70));
+          const daily = e.status === 429 && /per ?day|daily|quota|exhaust/i.test(String(e.message));
+          if (daily) { keyDead = true; break; }   // дневной лимит: повторы бессмысленны
           if (e.status === 404) break;
           if (e.status === 429 || e.status >= 500) { await sleep(800 * (att + 1)); continue; }
           if (e.status === 401 || e.status === 403) keyDead = true;

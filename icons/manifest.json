@@ -24,14 +24,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-dark-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any",
-      "media": "(prefers-color-scheme: dark)"
     }
   ],
-  "lang": "ru"
+  "lang": "ru",
+  "scope": "/",
+  "orientation": "portrait",
+  "categories": [
+    "education"
+  ]
 }

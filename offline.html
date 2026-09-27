@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>озвучка</title>
 <style>
-  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+  body { margin:0; min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center;
          background:#0a0a0f; color:#fff; font-family:system-ui,-apple-system,sans-serif; text-align:center; padding:24px }
   img { width:88px; height:88px; border-radius:22px; margin-bottom:18px }
   h1 { font-size:19px; margin:0 0 8px }
@@ -28,7 +28,7 @@
     de: ['Keine Verbindung', 'Die Seite wird geladen, sobald du wieder online bist.', 'Erneut versuchen'],
     uk: ['Немає підключення', 'Сторінка відкриється, щойно з’явиться інтернет.', 'Спробувати ще раз']
   };
-  var cfgLang = "auto";
+  var cfgLang = "ru";
   var code = 'en';
   if (cfgLang !== 'auto' && L[cfgLang]) { code = cfgLang; }
   else {

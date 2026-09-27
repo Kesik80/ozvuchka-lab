@@ -38,7 +38,7 @@ var CFG = {
   "accent": "#1E2A44",
   "themeDark": "#10151F",
   "themeLight": "#FBFCFE",
-  "themeAuto": true,
+  "themeAuto": false,   // цвет статус-бара задан в <head> двумя meta с media — скрипту их трогать не нужно
   "statusBar": "default",
   "style": "bar",
   "delay": 1800,
@@ -268,6 +268,7 @@ function registerSW() {
   }
   navigator.serviceWorker.register(CFG.sw, { scope: CFG.scope }).then(function (reg) {
     swReg = reg;
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdateToast(reg.waiting);
     reg.addEventListener('updatefound', function () {
       var nw = reg.installing;
       if (!nw) return;
@@ -290,8 +291,11 @@ function registerSW() {
 }
 
 function applyUpdate(worker) {
+  // новый воркер мог активироваться сам (skipWaiting в install) — тогда controllerchange уже был
+  if (!worker || worker.state === 'activated') { location.reload(); return; }
   wantReload = true;
-  worker.postMessage({ type: 'SKIP_WAITING' });
+  try { worker.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
+  setTimeout(function () { if (wantReload) { wantReload = false; location.reload(); } }, 1500);
 }
 
 function showUpdateToast(worker) {

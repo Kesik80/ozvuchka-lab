@@ -24,7 +24,7 @@ function isNever(url) {
   return false;
 }
 function isStatic(req) {
-  return /\.(png|jpe?g|webp|svg|gif|ico|css|js|woff2?|ttf|otf)(\?|$)/i.test(req.url);
+  return /\.(png|jpe?g|webp|svg|gif|ico|css|woff2?|ttf|otf)(\?|$)/i.test(req.url);
 }
 
 self.addEventListener('install', function (e) {
@@ -52,16 +52,17 @@ self.addEventListener('message', function (e) {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-function networkFirst(req) {
+function networkFirst(req, offlineOk) {
   return fetch(req).then(function (res) {
-    if (res && res.ok && MODE !== 'minimal') {
+    if (res && res.status === 200 && MODE !== 'minimal') {
       var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(req, copy); });
+      caches.open(CACHE).then(function (c) { return c.put(req, copy); }).catch(function () {});
     }
     return res;
   }).catch(function () {
-    return caches.match(req).then(function (hit) {
+    return caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(function (hit) {
       if (hit) return hit;
+      if (!offlineOk) return Response.error();   // офлайн-страницу отдаём только вместо страницы, не вместо аудио или данных
       return caches.match(OFFLINE).then(function (off) { return off || Response.error(); });
     });
   });
@@ -71,9 +72,9 @@ function cacheFirst(req) {
   return caches.match(req).then(function (hit) {
     if (hit) return hit;
     return fetch(req).then(function (res) {
-      if (res && res.ok) {
+      if (res && res.status === 200) {
         var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        caches.open(CACHE).then(function (c) { return c.put(req, copy); }).catch(function () {});
       }
       return res;
     });
@@ -83,12 +84,12 @@ function cacheFirst(req) {
 function staleWhileRevalidate(req) {
   return caches.match(req).then(function (hit) {
     var net = fetch(req).then(function (res) {
-      if (res && res.ok) {
+      if (res && res.status === 200) {
         var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        caches.open(CACHE).then(function (c) { return c.put(req, copy); }).catch(function () {});
       }
       return res;
-    }).catch(function () { return hit; });
+    }).catch(function () { return hit || Response.error(); });
     return hit || net;
   });
 }
@@ -102,7 +103,7 @@ self.addEventListener('fetch', function (e) {
 
   // Страницы: всегда свежие, офлайн — из кэша
   if (req.mode === 'navigate') {
-    e.respondWith(networkFirst(req));
+    e.respondWith(networkFirst(req, true));
     return;
   }
 
@@ -117,5 +118,5 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  e.respondWith(networkFirst(req));
+  e.respondWith(networkFirst(req, false));
 });

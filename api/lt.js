@@ -8,6 +8,15 @@ const LANG = { de: 'de-DE', ru: 'ru-RU', uk: 'uk-UA', en: 'en-US' };
 const LANG_NAME = { de: 'German', ru: 'Russian', uk: 'Ukrainian', en: 'English' };
 const MAX_MATCHES = 25;
 
+// запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
+async function fetchT(url, opt, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 25000);
+  try { return await fetch(url, Object.assign({}, opt, { signal: ctl.signal })); }
+  finally { clearTimeout(t); }
+}
+
+
 function gKeys() {
   const out = [];
   const add = v => { const k = String(v || '').trim(); if (k && !out.includes(k)) out.push(k); };
@@ -50,12 +59,12 @@ async function languageTool(text, lang) {
 }
 
 async function gemini(key, model, prompt) {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }),
-  });
+  }, 25000);
   const txt = await r.text();
   if (!r.ok) {
     let m = 'Gemini ' + r.status;
@@ -76,18 +85,26 @@ async function explain(text, matches, langName) {
     'You proofread ' + langName + ' study texts. The rule-based checker LanguageTool already found the places below.\n' +
     'TEXT:\n' + JSON.stringify(text) + '\n' +
     'FINDINGS: ' + JSON.stringify(list) + '\n' +
-    'Answer with JSON only: {"corrected": string, "explain": [{"i": number, "why": string}], ' +
+    'Answer with JSON only: {"explain": [{"i": number, "why": string}], ' +
     '"falsePositives": [number], "extra": [{"quote": string, "fix": string, "why": string}]}\n' +
-    '- corrected: the whole text with real mistakes fixed and nothing else changed (keep the line breaks).\n' +
     '- explain: for every real finding, "why" is a SHORT explanation IN RUSSIAN: what is wrong and what is correct.\n' +
     '- falsePositives: indexes i of findings that are not mistakes (names, places, dialect, tags in square brackets, deliberate style).\n' +
     '- extra: real mistakes the checker missed; "quote" must be an exact substring of TEXT, "fix" the corrected form, "why" in Russian. Empty array if none.';
-  const models = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest'];
+  const models = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+    .filter((m, i, a) => m && a.indexOf(m) === i);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   let last = null;
   for (const key of keys) {
     for (const model of models) {
-      try { return { j: await gemini(key, model, prompt), model }; }
-      catch (e) { last = e; if (e.status === 401 || e.status === 403) break; }
+      for (let att = 0; att < 2; att++) {
+        try { return { j: await gemini(key, model, prompt), model }; }
+        catch (e) {
+          last = e;
+          if (e.status === 401 || e.status === 403) return { skipped: e.message };
+          if ((e.status === 429 || e.status >= 500) && att === 0) { await sleep(800); continue; }
+          break;
+        }
+      }
     }
   }
   return { skipped: last ? last.message : 'нет ответа' };
@@ -110,15 +127,15 @@ module.exports = async function handler(req, res) {
   try { matches = await languageTool(text, lang); }
   catch (e) { ltFailed = e.name === 'AbortError' ? 'LanguageTool не ответил за 8 секунд' : e.message; }
 
-  let why = {}, fp = [], extra = [], corrected = null, llmFailed = null, model = null;
+  let why = {}, fp = [], extra = [], llmFailed = null, model = null;
   if (b.explain !== false) {
     const r = await explain(text, matches, LANG_NAME[short] || 'German');
     if (r.skipped) llmFailed = r.skipped;
     else {
       model = r.model;
       const j = r.j || {};
-      (j.explain || []).forEach(x => { if (x && Number.isInteger(x.i)) why[x.i] = String(x.why || '').slice(0, 300); });
-      fp = (j.falsePositives || []).filter(Number.isInteger);
+      (j.explain || []).forEach(x => { const i = Number(x && x.i); if (Number.isInteger(i)) why[i] = String((x && x.why) || '').slice(0, 300); });
+      fp = (Array.isArray(j.falsePositives) ? j.falsePositives : []).map(Number).filter(Number.isInteger);
       // позицию ищем на сервере: у клиента одна и та же цитата иначе всплывает в каждой строке
       extra = (j.extra || []).map(x => {
         if (!x || !x.quote) return null;
@@ -127,11 +144,10 @@ module.exports = async function handler(req, res) {
         if (at < 0) return null;
         return { quote: q, at, fix: String(x.fix || '').slice(0, 200), why: String(x.why || '').slice(0, 300) };
       }).filter(Boolean).slice(0, 20);
-      if (typeof j.corrected === 'string') corrected = j.corrected.slice(0, 20000);
     }
   }
   if (ltFailed && llmFailed) return res.status(502).json({ error: 'Проверка не сработала. ' + ltFailed + '; Gemini: ' + llmFailed });
-  return res.status(200).json({ matches, why, fp, extra, corrected, ltFailed, llmFailed, model });
+  return res.status(200).json({ matches, why, fp, extra, ltFailed, llmFailed, model });
 };
 
 module.exports.config = { maxDuration: 60 };

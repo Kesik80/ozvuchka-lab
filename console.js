@@ -392,7 +392,7 @@
   ══════════════════════════════ */
   var _fetch = window.fetch;
   window.fetch = function(resource, init) {
-    var url = (typeof resource === 'string' ? resource : resource.url).replace(location.origin,'').slice(0,70);
+    var url = String(typeof resource === 'string' ? resource : (resource && resource.url) || resource).replace(location.origin,'').slice(0,70);
     var method = ((init && init.method) || 'GET').toUpperCase();
     var t0 = Date.now();
     addLine('net', '\uD83C\uDF10', method + ' ' + url + ' \u2026');
@@ -459,12 +459,14 @@
   /* ══════════════════════════════
      LOCALSTORAGE — live
   ══════════════════════════════ */
+  var SECRET_RE = /pass|token|key|secret|auth/i;
+  function hideSecret(k, v) { return SECRET_RE.test(String(k)) ? '\u2022\u2022\u2022\u2022' : String(v); }
   var _lsSet = Storage.prototype.setItem;
   var _lsRem = Storage.prototype.removeItem;
   var _lsClr = Storage.prototype.clear;
   Storage.prototype.setItem = function(k, v) {
     _lsSet.call(this, k, v);
-    if (this === localStorage) { var s = String(v); addLine('ls','\uD83D\uDCBE','set: '+k+' = '+(s.length>60?s.slice(0,60)+'\u2026':s)); }
+    if (this === localStorage) { var s = hideSecret(k, v); addLine('ls','\uD83D\uDCBE','set: '+k+' = '+(s.length>60?s.slice(0,60)+'\u2026':s)); }
   };
   Storage.prototype.removeItem = function(k) {
     _lsRem.call(this, k);
@@ -531,7 +533,7 @@
         var keys = Object.keys(localStorage);
         addLine('ls','\uD83D\uDCBE','\u2500\u2500\u2500 localStorage snapshot ('+keys.length+') \u2500\u2500\u2500');
         keys.forEach(function(k) {
-          var v = localStorage.getItem(k);
+          var v = hideSecret(k, localStorage.getItem(k));
           if (v && v.length > 80) v = v.slice(0,80)+'\u2026';
           addLine('ls','  ', k+' = '+v);
         });

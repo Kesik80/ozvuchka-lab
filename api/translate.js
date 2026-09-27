@@ -4,6 +4,15 @@
 //      OZV_PASSWORD   — тот же код доступа, что у озвучки (если задан)
 const LANGS = { ru: 'Russian', uk: 'Ukrainian', de: 'German', en: 'English' };
 
+// запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
+async function fetchT(url, opt, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 25000);
+  try { return await fetch(url, Object.assign({}, opt, { signal: ctl.signal })); }
+  finally { clearTimeout(t); }
+}
+
+
 function keys() {
   const out = [];
   const add = v => { const k = String(v || '').trim(); if (k && !out.includes(k)) out.push(k); };
@@ -14,17 +23,17 @@ function keys() {
 
 async function ask(key, model, prompt, simple, glossMode) {
   const cfg = { temperature: 0.2, responseMimeType: 'application/json' };
+  if (/(2\.5|3|3\.5)-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
   if (!simple) {
     cfg.responseSchema = glossMode
       ? { type: 'ARRAY', items: { type: 'OBJECT', properties: { base: { type: 'STRING' }, tr: { type: 'STRING' }, pos: { type: 'STRING' } }, required: ['base', 'tr', 'pos'] } }
       : { type: 'ARRAY', items: { type: 'STRING' } };
-    if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
   }
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: cfg }),
-  });
+  }, 30000);
   const txt = await r.text();
   if (!r.ok) {
     let msg = 'Gemini ' + r.status;
@@ -40,13 +49,14 @@ async function ask(key, model, prompt, simple, glossMode) {
 
 // какие модели вообще доступны этому ключу
 async function listModels(key) {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } }, 10000);
   if (!r.ok) return [];
   const j = await r.json();
   return (j.models || [])
     .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
     .map(m => String(m.name || '').replace(/^models\//, ''))
-    .filter(n => /flash|pro/.test(n) && !/vision|image|audio|tts|embedding|live|thinking/.test(n));
+    .filter(n => /flash|pro/.test(n) && !/vision|image|audio|tts|embedding|live|thinking/.test(n))
+    .sort((a, b) => (/flash/.test(b) ? 1 : 0) - (/flash/.test(a) ? 1 : 0));
 }
 
 module.exports = async function handler(req, res) {
@@ -62,7 +72,7 @@ module.exports = async function handler(req, res) {
   const to = LANGS[b.to] ? b.to : 'ru';
   const from = LANGS[b.from] ? b.from : 'de';
   const lines = Array.isArray(b.lines) ? b.lines.slice(0, 80).map(x => String(x || '').slice(0, 1000)) : [];
-  if (!lines.length && b.mode !== 'gloss') return res.status(400).json({ error: 'Нет строк' });
+  if (!lines.length && !(Array.isArray(b.items) && b.items.length)) return res.status(400).json({ error: 'Нет строк' });
   const context = Array.isArray(b.context) ? b.context.slice(0, 40).map(x => String(x || '').slice(0, 300)) : [];
 
   // словарь: каждое слово приходит со своим предложением — значение подбирается по нему
@@ -124,6 +134,7 @@ module.exports = async function handler(req, res) {
           last = e;
           tried.push(model + ' → ' + (e.status || '?') + ' ' + String(e.message).slice(0, 70));
           if (e.status === 400 && !simple) { simple = true; continue; }        // не понимает схему/бюджет мыслей
+          if (e.status === 429 && /per ?day|daily|quota|exhaust/i.test(String(e.message))) { keyDead = true; break; }  // дневной лимит: перебирать модели бессмысленно
           if (e.status === 404) break;                                          // такой модели нет
           if (e.status === 429 || e.status >= 500) { await sleep(700 * (att + 1)); continue; }
           if (e.status === 401 || e.status === 403) keyDead = true;             // ключ не работает

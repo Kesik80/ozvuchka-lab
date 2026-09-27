@@ -3,6 +3,15 @@
 //      OZV_PASSWORD — тот же код доступа, что у озвучки
 const NAMES = { de: 'German', ru: 'Russian', uk: 'Ukrainian', en: 'English' };
 
+// запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
+async function fetchT(url, opt, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 25000);
+  try { return await fetch(url, Object.assign({}, opt, { signal: ctl.signal })); }
+  finally { clearTimeout(t); }
+}
+
+
 function keys() {
   const out = [];
   const add = v => { const k = String(v || '').trim(); if (k && !out.includes(k)) out.push(k); };
@@ -28,12 +37,12 @@ const SCHEMA = {
 
 async function ask(key, model, prompt) {
   const cfg = { temperature: 0.3, responseMimeType: 'application/json', responseSchema: SCHEMA };
-  if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+  if (/(2\.5|3|3\.5)-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
+  const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: cfg }),
-  });
+  }, 30000);
   const txt = await r.text();
   if (!r.ok) {
     let m = 'Gemini ' + r.status;
@@ -77,7 +86,8 @@ module.exports = async function handler(req, res) {
     'Skip a line only if it has no suitable word; then simply leave it out of the array.\n' +
     'Lines: ' + JSON.stringify(lines);
 
-  const models = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest'];
+  const models = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+    .filter((m, i, a) => m && a.indexOf(m) === i);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const tried = [];
   let last = null;
@@ -87,7 +97,7 @@ module.exports = async function handler(req, res) {
       for (let att = 0; att < 2 && !keyDead; att++) {
         try {
           const out = await ask(key, model, prompt);
-          const items = (Array.isArray(out) ? out : []).map(x => {
+          const items = (Array.isArray(out) ? out : []).filter(x => x && typeof x === 'object').map(x => {
             const word = String((x && x.word) || '').trim();
             let options = (Array.isArray(x && x.options) ? x.options : []).map(o => String(o || '').trim()).filter(Boolean);
             options = options.filter((o, n) => options.indexOf(o) === n);
@@ -100,6 +110,8 @@ module.exports = async function handler(req, res) {
           return res.status(200).json({ items, model, tried });
         } catch (e) {
           last = e; tried.push(model + ' → ' + (e.status || '?') + ' ' + String(e.message).slice(0, 70));
+          const daily = e.status === 429 && /per ?day|daily|quota|exhaust/i.test(String(e.message));
+          if (daily) { keyDead = true; break; }   // дневной лимит: повторы бессмысленны
           if (e.status === 404) break;
           if (e.status === 429 || e.status >= 500) { await sleep(700 * (att + 1)); continue; }
           if (e.status === 401 || e.status === 403) keyDead = true;

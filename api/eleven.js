@@ -3,6 +3,15 @@
 //      OZV_PASSWORD       = "..."              (необязательно: код доступа к функции)
 const BASE = 'https://api.elevenlabs.io';
 
+// запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
+async function fetchT(url, opt, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 25000);
+  try { return await fetch(url, Object.assign({}, opt, { signal: ctl.signal })); }
+  finally { clearTimeout(t); }
+}
+
+
 function keys() {
   // как в Uhrzeit: ELEVENLABS_API_KEY, _2 … _5 и/или ELEVENLABS_API_KEYS через запятую
   const out = [];
@@ -19,12 +28,12 @@ function outOfCredits(status, text) {
 }
 function tail(k) { return '…' + k.slice(-4); }
 
-async function el(key, path, opt = {}) {
-  const r = await fetch(BASE + path, {
+async function el(key, path, opt = {}, ms) {
+  const r = await fetchT(BASE + path, {
     method: opt.method || 'GET',
     headers: Object.assign({ 'xi-api-key': key }, opt.body ? { 'Content-Type': 'application/json' } : {}),
     body: opt.body ? JSON.stringify(opt.body) : undefined,
-  });
+  }, ms || 20000);
   return r;
 }
 async function errOf(r) {
@@ -38,6 +47,7 @@ async function errOf(r) {
 function send(res, status, obj) { res.status(status).json(obj); }
 
 module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return send(res, 405, { error: 'Только POST', code: 'method' });
   const pass = process.env.OZV_PASSWORD;
   if (pass && req.headers['x-ozv-pass'] !== pass) return send(res, 401, { error: 'Нужен код доступа', code: 'need_pass' });
@@ -67,7 +77,7 @@ module.exports = async function handler(req, res) {
         const good = acc.filter(a => a.ok);
         const left = good.reduce((n, a) => n + a.left, 0), limit = good.reduce((n, a) => n + a.limit, 0);
         const best = good.slice().sort((a, b2) => b2.left - a.left)[0];
-        return send(res, 200, { keys: acc, left, limit, percent: limit ? Math.round((limit - left) / limit * 100) : 0, best: best ? best.i : 0 });
+        return send(res, 200, { keys: acc, left, limit, percent: limit ? Math.round((limit - left) / limit * 100) : 0, best: best ? best.i : null });
       }
 
       case 'voices': {
@@ -83,8 +93,11 @@ module.exports = async function handler(req, res) {
 
       case 'tts':
       case 'ttsts': {   // ttsts — весь текст одним файлом + тайминги символов
-        const text = String(b.text || '').slice(0, 5000);
         const ts = b.a === 'ttsts';
+        const raw = typeof b.text === 'string' ? b.text : '';
+        const MAX = ts ? 2600 : 5000;   // ответ с таймингами — это base64 внутри JSON, у Vercel предел 4,5 МБ
+        if (raw.length > MAX) return send(res, 400, { error: 'Кусок длиннее ' + MAX + ' символов — раздели его', code: 'too_long' });
+        const text = raw;
         if (!text.trim()) return send(res, 400, { error: 'Пустой текст', code: 'empty' });
         if (!/^[A-Za-z0-9]{15,40}$/.test(String(b.voice || ''))) return send(res, 400, { error: 'Неверный голос', code: 'voice' });
         const MODELS = ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5'];
@@ -109,7 +122,7 @@ module.exports = async function handler(req, res) {
         const order = b.pin ? [start] : K.map((_, n) => (start + n) % K.length);
         let last = null;
         for (const i of order) {
-          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + (ts ? '/with-timestamps' : '') + '?output_format=mp3_44100_64', { method: 'POST', body });
+          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + (ts ? '/with-timestamps' : '') + '?output_format=mp3_44100_64', { method: 'POST', body }, 45000);
           if (r.ok && ts) {
             const j = await r.json();
             const al = j.alignment || j.normalized_alignment || {};
@@ -125,15 +138,17 @@ module.exports = async function handler(req, res) {
             res.setHeader('Cache-Control', 'no-store');
             return res.status(200).send(buf);
           }
-          const txt = (await r.text()).slice(0, 400);
-          if (r.status === 402 || /paid_plan_required/.test(txt))
+          const full = await r.text();
+          const txt = full.slice(0, 400);
+          if (outOfCredits(r.status, full) && order.length > 1) { last = 'У аккаунта ' + (i + 1) + ' кончились символы'; continue; }
+          if (r.status === 429 && order.length > 1) { last = 'Аккаунт ' + (i + 1) + ' занят'; continue; }
+          if (r.status === 402 || /paid_plan_required/.test(full))
             return send(res, 402, { error: 'Этот голос доступен только на платном плане ElevenLabs', code: 'paid_voice', key: i });
-          if (outOfCredits(r.status, txt) && order.length > 1) { last = { error: 'У аккаунта ' + (i + 1) + ' кончились символы', code: 'quota_exceeded' }; continue; }
           let msg = 'ElevenLabs ' + r.status, code = String(r.status);
-          try { const d = JSON.parse(txt).detail; if (d) { msg = d.message || msg; code = d.status || d.code || code; } } catch (e) {}
+          try { const d = JSON.parse(full).detail; if (d) { msg = d.message || msg; code = d.status || d.code || code; } } catch (e) { if (txt) msg += ': ' + txt; }
           return send(res, 502, { error: msg, code, key: i });
         }
-        return send(res, 502, Object.assign({ error: 'Символы кончились на всех аккаунтах', code: 'quota_exceeded' }, last || {}));
+        return send(res, 502, { error: order.length > 1 ? 'Все аккаунты заняты или без символов' : (last || 'Озвучка не удалась'), code: 'quota_exceeded', last: last || null });
       }
 
       case 'design': {
@@ -143,7 +158,7 @@ module.exports = async function handler(req, res) {
         const text = String(b.text || '');
         const body = { voice_description: desc, model_id: b.model === 'eleven_ttv_v3' ? 'eleven_ttv_v3' : 'eleven_multilingual_ttv_v2' };
         if (text.length >= 100 && text.length <= 1000) body.text = text; else body.auto_generate_text = true;
-        const r = await el(k, '/v1/text-to-voice/design', { method: 'POST', body });
+        const r = await el(k, '/v1/text-to-voice/design', { method: 'POST', body }, 45000);
         if (!r.ok) { const e = await errOf(r); return send(res, 502, { error: e.msg, code: e.code }); }
         const j = await r.json();
         return send(res, 200, { previews: (j.previews || []).map(p => ({ gid: p.generated_voice_id, audio: p.audio_base_64, dur: p.duration_secs || null })), text: j.text || null });
