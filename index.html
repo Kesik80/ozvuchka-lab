@@ -429,6 +429,14 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln .tr{display:block;font-size:14px;color:var(--muted);margin-top:2px}
 .ln .ic{font-size:13px;opacity:.55;margin-left:4px}
 .ln.act .t{background-image:linear-gradient(var(--m),var(--m));background-repeat:no-repeat;background-size:var(--p,0%) 100%}
+/* маркер по словам: есть точные времена от озвучки */
+.ln.kar.act .t{background-image:none}
+.ln.kar w[data-k]{background-image:linear-gradient(var(--m),var(--m));background-repeat:no-repeat;background-size:0 100%;border-radius:3px}
+body .ln.kar.act w.done{background-image:linear-gradient(var(--m),var(--m));background-size:100% 100%;box-shadow:none}
+body .ln.kar.act w.now{background-image:linear-gradient(var(--m),var(--m));background-size:var(--wp,0%) 100%;box-shadow:none}
+body.nomk .ln.kar w[data-k]{background-image:none}
+/* на читаемой строке цвет знакомости уступает маркеру, иначе два синих спорят */
+body.words .ln.kar.act w{background-color:transparent;box-shadow:none}
 .ln.act{background:color-mix(in srgb,var(--c,#FFD84D) 8%,transparent)}
 .ln.silent{cursor:default}
 .ctl{float:right;display:inline-flex;gap:2px;margin:0 0 2px 8px}
@@ -437,8 +445,9 @@ h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .ln .tr{display:none}
 body:not(.notr) .ln:not(.flip) .tr{display:block}
 body.notr .ln.flip .tr{display:block}
-w{border-bottom:1px dotted transparent;cursor:help;border-radius:3px}
-body.words w{border-bottom-color:color-mix(in srgb,var(--c,#1E2A44) 45%,transparent)}
+w{border-radius:3px}
+w[data-t]{border-bottom:1px dotted transparent;cursor:help}
+body.words w[data-t]{border-bottom-color:color-mix(in srgb,var(--c,#1E2A44) 45%,transparent)}
 body.words w.s0{background:#DCE8FF;box-shadow:0 0 0 1px #DCE8FF}
 body.words w.s1{background:#FFE9A8;box-shadow:0 0 0 1px #FFE9A8}
 body.words w.s2{background:none;border-bottom-color:transparent}
@@ -510,15 +519,20 @@ var WS={};try{WS=JSON.parse(localStorage.getItem(WKEY)||'{}')||{};}catch(e){}
 function saveWS(){try{localStorage.setItem(WKEY,JSON.stringify(WS));}catch(e){}}
 var G=D.gloss||null,hasG=false;
 if(G&&G.length)for(var gi=0;gi<G.length;gi++){for(var gk in G[gi]){hasG=true;break;}if(hasG)break;}
-function wrapWords(t,idx){
+function wordCount(t){var re=/[\p{L}\p{M}'\u2019-]+/gu,n=0;while(re.exec(t))n++;return n;}
+function karOk(l){return !!(l.wt&&l.wt.length&&l.wt.length===2*wordCount(l.text));}
+function wrapWords(t,idx,kar){
   var map=hasG&&G[idx]?G[idx]:null;
-  if(!map)return esc(t);
-  var out='',re=/[\p{L}\p{M}'\u2019-]+/gu,last=0,m;
+  if(!map&&!kar)return esc(t);
+  var out='',re=/[\p{L}\p{M}'\u2019-]+/gu,last=0,m,n=0;
   while((m=re.exec(t))){
     out+=esc(t.slice(last,m.index));
-    var k=m[0].toLowerCase(),g=map[k];
-    out+=g?'<w class="s'+(WS[k]||0)+'" data-w="'+esc(k)+'" data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'">'+esc(m[0])+'</w>':esc(m[0]);
-    last=m.index+m[0].length;
+    var k=m[0].toLowerCase(),g=map&&map[k];
+    if(g||kar){
+      out+='<w'+(g?' class="s'+(WS[k]||0)+'" data-w="'+esc(k)+'" data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'"':'')+
+           (kar?' data-k="'+n+'"':'')+'>'+esc(m[0])+'</w>';
+    }else out+=esc(m[0]);
+    n++;last=m.index+m[0].length;
   }
   return out+esc(t.slice(last));
 }
@@ -542,8 +556,9 @@ L.forEach(function(l,i){
     var playable=l.clip&&AU[l.clip] || (hasMain&&l.start!=null);
     if(!playable)el.classList.add('silent');
     var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
-    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i)+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i,karOk(l))+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
     if(sp&&side[l.spk])el.classList.add('me');
+    if(karOk(l))el.classList.add('kar');else if(l.wt)l.wt=null;
     if(l.tr&&V.tr!==false){var eb=el.querySelector('.eye');if(eb)eb.classList.add('on');}
     (function(idx){
       el.addEventListener('click',function(e){
@@ -572,17 +587,40 @@ var $=function(id){return document.getElementById(id);};
 var playBtn=$('pp'), seek=$('sk'), tlab=$('tm');
 var mode=null, cur=-1, segEnd=null, segLine=-1, pausedAt=-1, raf=0;
 function fmt(t){if(!isFinite(t))t=0;var m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+(s<10?'0':'')+s;}
-function setAct(i,p){
+var karLine=-1,karWords=null;
+function karReset(){
+  if(karLine>=0&&karWords)for(var k=0;k<karWords.length;k++){karWords[k].classList.remove('done','now');karWords[k].style.removeProperty('--wp');}
+  karLine=-1;karWords=null;
+}
+function karSet(i,lt){
+  var wt=L[i]&&L[i].wt;
+  if(!wt||lt==null){if(karLine===i)karReset();return;}
+  if(karLine!==i){karReset();karLine=i;karWords=els[i].querySelectorAll('w[data-k]');}
+  var ws=karWords;if(!ws)return;
+  for(var k=0;k<ws.length;k++){
+    var t0=wt[2*k],t1=wt[2*k+1],el=ws[k];
+    if(t0==null){continue;}
+    if(lt>=t1){el.classList.add('done');el.classList.remove('now');el.style.removeProperty('--wp');}
+    else if(lt>=t0){el.classList.add('now');el.classList.remove('done');
+      el.style.setProperty('--wp',(Math.max(0,Math.min(1,(lt-t0)/Math.max(0.06,t1-t0)))*100).toFixed(0)+'%');}
+    else{el.classList.remove('done','now');el.style.removeProperty('--wp');}
+  }
+}
+function setAct(i,p,lt){
   if(cur!==i){
     if(i!==pausedAt)pausedAt=-1;
     if(cur>=0&&els[cur])els[cur].classList.remove('act');
+    karReset();
     cur=i;
     if(i>=0&&els[i]){els[i].classList.add('act');
       var r=els[i].getBoundingClientRect(), vh=window.innerHeight-150;
       if(r.top<40||r.bottom>vh)els[i].scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
     }
   }
-  if(i>=0&&els[i])els[i].style.setProperty('--p',(Math.max(0,Math.min(1,p))*100).toFixed(1)+'%');
+  if(i>=0&&els[i]){
+    els[i].style.setProperty('--p',(Math.max(0,Math.min(1,p))*100).toFixed(1)+'%');
+    if(L[i]&&L[i].wt)karSet(i,lt==null?(p>=1?1e9:null):lt);
+  }
 }
 function lineAt(t){
   var f=-1;for(var k=0;k<timed.length;k++){if(L[timed[k]].start<=t+0.01)f=timed[k];else break;}
@@ -591,7 +629,7 @@ function lineAt(t){
 function tick(){
   raf=0;
   if(mode==='clip'||mode==='seq'){
-    var d=clip.duration; setAct(cur,isFinite(d)&&d>0?clip.currentTime/d:0);
+    var d=clip.duration; setAct(cur,isFinite(d)&&d>0?clip.currentTime/d:0,clip.currentTime);
     if(!clip.paused)raf=requestAnimationFrame(tick);
     return;
   }
@@ -605,7 +643,7 @@ function tick(){
     if(P.loop){main.currentTime=L[cur].start;t=main.currentTime;i=cur;}
     else if(P.apause&&pausedAt!==cur){main.pause();pausedAt=cur;setAct(cur,1);ui();return;}
   }
-  if(i>=0){var st=L[i].start,en=endOf[i];setAct(i,en>st?(t-st)/(en-st):1);}else setAct(-1,0);
+  if(i>=0){var st=L[i].start,en=endOf[i];setAct(i,en>st?(t-st)/(en-st):1,t-st);}else setAct(-1,0);
   if(!seek.dragging&&isFinite(main.duration)){seek.value=(t/main.duration*1000)|0;}
   tlab.textContent=fmt(t)+' / '+fmt(main.duration);
   if(!main.paused)raf=requestAnimationFrame(tick);
@@ -944,7 +982,7 @@ $('spks').addEventListener('click',async e=>{
 });
 
 /* ---------- lines ---------- */
-const newLine=(o)=>Object.assign({id:'l'+uid(),type:'line',spk:null,text:'',tr:'',start:null,clip:null,color:null,gen:null},o||{});
+const newLine=(o)=>Object.assign({id:'l'+uid(),type:'line',spk:null,text:'',tr:'',start:null,clip:null,color:null,gen:null,wt:null},o||{});
 function lineColor(i){
   const l=S.lines[i];
   if(l.type==='head')return l.color||'#1E2A44';
@@ -1015,7 +1053,7 @@ $('lines').addEventListener('click',async e=>{
   const act=b.dataset.act;
   if(act==='play'){edPlay(i);return;}
   if(act==='nudge'){l.start=Math.max(0,Math.round((l.start+ +b.dataset.d)*100)/100);renderLines();save();edPlay(i);return;}
-  if(act==='clipx'){l.clip=null;l.gen=null;renderLines();save();return;}
+  if(act==='clipx'){l.clip=null;l.gen=null;l.wt=null;renderLines();save();return;}
   if(act==='retts'){ttsOne(i);return;}
   if(act==='ltfix'){ltFix(i,+b.dataset.n,b.dataset.r);return;}
   if(act==='ltskip'){ltSkip(i,+b.dataset.n);return;}
@@ -1046,8 +1084,8 @@ $('lines').addEventListener('click',async e=>{
     items.push({k:'del',icon:'✕',label:'Удалить',danger:true});
     const k=await sheet((l.text||'').slice(0,50)||'Строка',items);
     if(k==='tts')ttsOne(i);
-    if(k==='clipf'){const f=await pickFile('audio/*');if(f){l.clip=addBlob(f);l.gen=null;renderLines();save();}}
-    if(k==='clipu'){const u=(prompt('Ссылка на MP3','')||'').trim();if(u){l.clip=await loadUrl(u);l.gen=null;renderLines();save();}}
+    if(k==='clipf'){const f=await pickFile('audio/*');if(f){l.clip=addBlob(f);l.gen=null;l.wt=null;renderLines();save();}}
+    if(k==='clipu'){const u=(prompt('Ссылка на MP3','')||'').trim();if(u){l.clip=await loadUrl(u);l.gen=null;l.wt=null;renderLines();save();}}
     if(k==='tr')trLines([i],true);
     if(k==='lt')ltLines([i]);
     if(k==='untime'){l.start=null;renderLines();save();}
@@ -1474,14 +1512,33 @@ $('elSeed').addEventListener('input',e=>{const v=parseInt(e.target.value,10);if(
 $('elSeed').addEventListener('change',()=>renderLines());
 $('elLang').addEventListener('change',e=>{elS().lang=e.target.value;elChanged();});
 
+// времена слов из посимвольной разметки ElevenLabs
+function b64Blob(b64,type){
+  const bin=atob(b64||'');const u8=new Uint8Array(bin.length);
+  for(let q=0;q<bin.length;q++)u8[q]=bin.charCodeAt(q);
+  return new Blob([u8],{type:type||'audio/mpeg'});
+}
+function wordTimes(sent,starts,ends,from,len,base){
+  if(!starts||!starts.length)return null;
+  const seg=sent.substr(from,len),re=/[\p{L}\p{M}'\u2019-]+/gu,out=[];let m;
+  while((m=re.exec(seg))){
+    const a2=from+m.index,b2=a2+m[0].length-1;
+    const s=starts[a2],e=(ends&&ends[b2]!=null)?ends[b2]:starts[b2];
+    if(s==null||e==null)return null;
+    out.push(Math.round((s-base)*1000)/1000,Math.round((e-base)*1000)/1000);
+  }
+  return out.length?out:null;
+}
 async function ttsLine(i){
   const l=S.lines[i],v=voiceFor(l),e=elS();
   if(!l.text.trim())throw new Error('пустая строка');
   if(!v){const s=spk(l.spk);throw new Error('не выбран голос для «'+(s?s.name:'без говорящего')+'» (вкладка «Аудио»)');}
-  const req=buildReq(i,v,e);
-  const r=await api(req,true);
+  const req=buildReq(i,v,e);req.a='ttsts';           // с разметкой по символам: маркер пойдёт по словам
+  const r=await api(req);
   if(!req.pin&&Number.isInteger(r.key)&&r.key!==ACC){ACC=r.key;rememberAcc();toast('Символы кончились — перешёл на аккаунт '+(ACC+1));}
-  l.clip=addBlob(r.blob);l.gen=ttsSig(l,e);
+  l.clip=addBlob(b64Blob(r.audio));l.gen=ttsSig(l,e);
+  const pre=(e.model==='eleven_v3'&&e.tags.trim())?e.tags.trim().length+1:0;
+  l.wt=(r.chars===req.text.length)?wordTimes(req.text,r.starts,r.ends,pre,l.text.trim().length,0):null;
 }
 /* пробы */
 const PROBES=[];
@@ -1516,7 +1573,7 @@ $('prList').addEventListener('click',e=>{
     const p=PROBES[+b.dataset.pru];const l=S.lines.find(x=>x.id===p.lineId);
     if(!l){toast('Этой строки уже нет.');return;}
     if(l.text.trim()!==p.text){toast('Текст строки изменился после пробы.');return;}
-    l.clip=addBlob(p.blob);l.gen=ttsSig(l,p.set);renderLines();renderAudio();save();toast('Проба стала клипом строки');
+    l.clip=addBlob(p.blob);l.gen=ttsSig(l,p.set);l.wt=null;renderLines();renderAudio();save();toast('Проба стала клипом строки');
   }
 });
 function ttsNeed(force){
@@ -1741,7 +1798,7 @@ async function ttsWhole(){
   if(k!=='go')return;
   wholeBusy=true;const btn=$('ttsWholeBtn');btn.disabled=true;
   try{
-    const blobs=[],starts={};let offset=0,prevText='';
+    const blobs=[],starts={},wts={};let offset=0,prevText='';
     for(let c=0;c<chunks.length;c++){
       btn.textContent='Озвучиваю часть '+(c+1)+' из '+chunks.length+'…';
       const ch=chunks[c];let text=pre;const pos=[];
@@ -1754,13 +1811,21 @@ async function ttsWhole(){
       if(!pin&&Number.isInteger(j.key)&&j.key!==ACC){ACC=j.key;rememberAcc();}
       const bin=atob(j.audio||'');const u8=new Uint8Array(bin.length);for(let q=0;q<bin.length;q++)u8[q]=bin.charCodeAt(q);
       const blob=new Blob([u8],{type:'audio/mpeg'});blobs.push(blob);
-      const st=j.starts||[],scale=j.chars&&j.chars!==text.length?j.chars/text.length:1;
-      ch.items.forEach((it,n)=>{const ix=Math.min(st.length-1,Math.round(pos[n]*scale));const t=st[ix];starts[it.i]=isFinite(t)?Math.max(0,offset+t-0.05):null;});
+      const st=j.starts||[],en=j.ends||[],exact=j.chars===text.length,scale=exact?1:(j.chars?j.chars/text.length:1);
+      ch.items.forEach((it,n)=>{
+        const ix=Math.min(st.length-1,Math.round(pos[n]*scale));const t=st[ix];
+        starts[it.i]=isFinite(t)?Math.max(0,offset+t-0.05):null;
+        wts[it.i]=exact&&starts[it.i]!=null
+          ? wordTimes(text,st,en,pos[n],it.t.length,Math.round(starts[it.i]*100)/100-offset)
+          : null;
+      });
       offset+=await audioDuration(blob);prevText=ch.items.map(x=>x.t).join(' ');
     }
     const all=new Blob(blobs,{type:'audio/mpeg'});
     S.main=addBlob(all);edSrcId=null;
-    S.lines.forEach((l,i)=>{if(l.type==='head')return;if(i in starts)l.start=starts[i]!=null?Math.round(starts[i]*100)/100:null;if(l.clip&&l.gen){l.clip=null;l.gen=null;}});
+    S.lines.forEach((l,i)=>{if(l.type==='head')return;
+      if(i in starts){l.start=starts[i]!=null?Math.round(starts[i]*100)/100:null;l.wt=wts[i]||null;}
+      if(l.clip&&l.gen){l.clip=null;l.gen=null;}});
     syncPos=firstUnmarked();renderLines();renderAudio();save();if(QUOTA)loadQuota();
     toast('Готово: одна дорожка '+fmtS(offset)+', строки размечены');
   }catch(err){toast('Не получилось: '+err.message);}
@@ -2061,7 +2126,7 @@ async function trApiGloss(items,from,to){
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null}))};
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
 }
 async function buildHTML(embed){
   const au={};

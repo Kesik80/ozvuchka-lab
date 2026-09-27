@@ -113,7 +113,9 @@ module.exports = async function handler(req, res) {
           if (r.ok && ts) {
             const j = await r.json();
             const al = j.alignment || j.normalized_alignment || {};
-            return send(res, 200, { audio: j.audio_base_64 || j.audio_base64, starts: al.character_start_times_seconds || [],
+            return send(res, 200, { audio: j.audio_base_64 || j.audio_base64,
+              starts: al.character_start_times_seconds || [],
+              ends: al.character_end_times_seconds || [],
               chars: (al.characters || []).length, key: i });
           }
           if (r.ok) {
