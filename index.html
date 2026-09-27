@@ -397,7 +397,7 @@ select.inp{appearance:auto}
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <strong>Как будет выглядеть</strong>
-      <button class="btn" data-go="preview">Обновить</button>
+      <button class="btn" data-go="previewForce">Обновить</button>
     </div>
     <iframe class="pv" id="pv" title="Предпросмотр"></iframe>
   </section>
@@ -852,6 +852,14 @@ $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 $('o-bg').addEventListener('click',function(){P.bg=!P.bg;saveP();ui();});
 $('o-wd').addEventListener('click',function(){P.words=!P.words;hideTip();saveP();ui();});
+// предпросмотр в редакторе меняет вид без перезагрузки страницы
+addEventListener('message',function(e){
+  var d=e.data;if(!d||d.ozv!=='view')return;
+  if(d.layout){var c=document.body.className.replace(/\blay-\S+/g,'').trim();document.body.className=(c+' lay-'+d.layout).trim();}
+  P.tr=d.tr!==false;P.mk=d.marker!==false;
+  els.forEach(function(x){if(x&&x.classList){x.classList.remove('flip');var b2=x.querySelector('.eye');if(b2)b2.classList.toggle('on',P.tr);}});
+  ui();
+});
 if(!hasMain&&nextClip(0)<0){var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;if(!anyTr&&!hasG)$('pl').hidden=true;}
 ui();
 })();
@@ -890,13 +898,33 @@ const idbKeys=()=>idb('readonly',st=>st.getAllKeys());
 let saveT=0;
 function save(){clearTimeout(saveT);$('saved').textContent='…';saveT=setTimeout(saveNow,600);}
 function saveNow(){
-  clearTimeout(saveT);
+  clearTimeout(saveT);gcLater();
   const remotes={};for(const id in A)if(A[id].remote)remotes[id]=A[id].remote;
   return idbPut('project',JSON.stringify({S,remotes})).then(()=>{$('saved').textContent='сохранено';}).catch(e=>{console.error(e);$('saved').textContent='не сохранено';});
 }
 function addBlob(blob){const id='a'+uid();A[id]={blob,url:URL.createObjectURL(blob)};idbPut('a:'+id,blob).catch(e=>{console.error(e);toast('Аудио не записалось в память браузера. Сохрани проект файлом.');});return id;}
 function addRemote(url){const id='r'+uid();A[id]={remote:url};return id;}
 function usedIds(){const s=new Set();if(S.main)s.add(S.main);S.lines.forEach(l=>{if(l.clip)s.add(l.clip);});return s;}
+// лишние записи убираем по ходу, а не только при следующем запуске;
+// пауза длиннее, чем живёт кнопка «Вернуть» в уведомлении
+let gcT=0;
+function gcLater(){clearTimeout(gcT);gcT=setTimeout(gcAudio,30000);}
+async function gcAudio(){
+  try{
+    const used=usedIds();
+    for(const id in A){
+      if(used.has(id))continue;
+      if(A[id].url)URL.revokeObjectURL(A[id].url);
+      delete A[id];
+      if(edSrcId===id)edSrcId=null;
+    }
+    const keys=await idbKeys();
+    for(const k of keys){
+      if(typeof k!=='string'||k.indexOf('a:')!==0)continue;
+      if(!used.has(k.slice(2)))await idbDel(k).catch(()=>{});
+    }
+  }catch(e){console.warn('уборка аудио:',e.message);}
+}
 
 /* ---------- ui helpers ---------- */
 let toastEl=null,toastT=0;
@@ -2151,8 +2179,20 @@ function exportName(){
   let n=(S.fname||'').trim()||slug(S.title)||'ozvuchka';
   if(!/\.html?$/i.test(n))n+='.html';return n;
 }
-let pvUrl=null;
-async function preview(){
+let pvUrl=null,pvSig=null,pvT=0;
+function viewMsg(){const v=viewS();return {ozv:'view',tr:!!v.trOut,marker:v.markerOut!==false,layout:v.layout||'plain'};}
+// содержимое без настроек показа: если оно не менялось, страницу пересобирать незачем
+function pvSignature(){const d=projectData();delete d.view;return JSON.stringify(d);}
+function previewView(){
+  const w=$('pv').contentWindow;
+  if(!pvUrl||!w)return false;
+  try{w.postMessage(viewMsg(),'*');return true;}catch(e){return false;}
+}
+function preview(force){clearTimeout(pvT);pvT=setTimeout(()=>previewNow(force),120);}
+async function previewNow(force){
+  const sig=pvSignature();
+  if(!force&&pvUrl&&sig===pvSig&&previewView())return;   // поменялся только вид
+  pvSig=sig;
   const html=await buildHTML(false);
   if(pvUrl)URL.revokeObjectURL(pvUrl);
   pvUrl=URL.createObjectURL(new Blob([html],{type:'text/html'}));
@@ -2347,7 +2387,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  preview,previewForce(){preview(true);},export:doExport,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
