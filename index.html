@@ -519,12 +519,12 @@ var WS={};try{WS=JSON.parse(localStorage.getItem(WKEY)||'{}')||{};}catch(e){}
 function saveWS(){try{localStorage.setItem(WKEY,JSON.stringify(WS));}catch(e){}}
 var G=D.gloss||null,hasG=false;
 if(G&&G.length)for(var gi=0;gi<G.length;gi++){for(var gk in G[gi]){hasG=true;break;}if(hasG)break;}
-function wordCount(t){var re=/[\p{L}\p{M}'\u2019-]+/gu,n=0;while(re.exec(t))n++;return n;}
+function wordCount(t){var re=/[\p{L}\p{M}\p{N}'\u2019-]+/gu,n=0;while(re.exec(t))n++;return n;}
 function karOk(l){return !!(l.wt&&l.wt.length&&l.wt.length===2*wordCount(l.text));}
 function wrapWords(t,idx,kar){
   var map=hasG&&G[idx]?G[idx]:null;
   if(!map&&!kar)return esc(t);
-  var out='',re=/[\p{L}\p{M}'\u2019-]+/gu,last=0,m,n=0;
+  var out='',re=/[\p{L}\p{M}\p{N}'\u2019-]+/gu,last=0,m,n=0;
   while((m=re.exec(t))){
     out+=esc(t.slice(last,m.index));
     var k=m[0].toLowerCase(),g=map&&map[k];
@@ -1520,7 +1520,7 @@ function b64Blob(b64,type){
 }
 function wordTimes(sent,starts,ends,from,len,base){
   if(!starts||!starts.length)return null;
-  const seg=sent.substr(from,len),re=/[\p{L}\p{M}'\u2019-]+/gu,out=[];let m;
+  const seg=sent.substr(from,len),re=/[\p{L}\p{M}\p{N}'\u2019-]+/gu,out=[];let m;
   while((m=re.exec(seg))){
     const a2=from+m.index,b2=a2+m[0].length-1;
     const s=starts[a2],e=(ends&&ends[b2]!=null)?ends[b2]:starts[b2];
@@ -2048,7 +2048,7 @@ async function stt(){
 }
 
 /* ---------- словарь слов для подсказок ---------- */
-const WORD_RE=/[\p{L}\p{M}'\u2019-]+/gu;
+const WORD_RE=/[\p{L}\p{M}\p{N}'\u2019-]+/gu;
 const SEP='\u001f';
 const glossKey=(w,s)=>w+SEP+s;
 function glossPairs(){
