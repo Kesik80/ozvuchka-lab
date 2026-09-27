@@ -16,7 +16,7 @@ async function ask(key, model, prompt, simple, glossMode) {
   const cfg = { temperature: 0.2, responseMimeType: 'application/json' };
   if (!simple) {
     cfg.responseSchema = glossMode
-      ? { type: 'ARRAY', items: { type: 'OBJECT', properties: { base: { type: 'STRING' }, tr: { type: 'STRING' } }, required: ['base', 'tr'] } }
+      ? { type: 'ARRAY', items: { type: 'OBJECT', properties: { base: { type: 'STRING' }, tr: { type: 'STRING' }, pos: { type: 'STRING' } }, required: ['base', 'tr', 'pos'] } }
       : { type: 'ARRAY', items: { type: 'STRING' } };
     if (/2\.5-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
   }
@@ -110,7 +110,8 @@ module.exports = async function handler(req, res) {
               tried.push(model + ' → формат');
               break;
             }
-            const gloss = out.map(x => ({ base: String((x && x.base) || '').slice(0, 60), tr: String((x && x.tr) || '').slice(0, 80) }));
+            const gloss = out.map(x => ({ base: String((x && x.base) || '').slice(0, 60), tr: String((x && x.tr) || '').slice(0, 80),
+              pos: (['v', 'n', 'a'].includes(String((x && x.pos) || '').toLowerCase()) ? String(x.pos).toLowerCase() : '') }));
             return res.status(200).json({ gloss, model, tried });
           }
           if (!Array.isArray(out) || out.length !== lines.length) {

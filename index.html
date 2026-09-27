@@ -398,6 +398,8 @@ select.inp{appearance:auto}
       <div class="row views"><button class="tgl" data-view="gaps">Задание на пропуски</button><button class="btn mini" data-go="gapBuild" id="gapBtn">Сделать пропуски</button></div>
       <p class="hint" id="gapInfo"></p>
       <p class="hint" id="glossInfo"></p>
+      <div class="row views"><button class="tgl" data-view="verb">Ссылка на Verb_de</button><button class="btn mini" data-go="verbOpen" id="verbBtn">Открыть глаголы</button><button class="btn mini" data-go="verbCsv">CSV</button></div>
+      <p class="hint" id="verbInfo"></p>
       <p class="hint">Кнопка «запись» в готовой странице включает микрофон у каждой реплики: слушаешь диктора, записываешь себя, «⇄ подряд» проигрывает обе. Записи живут только пока открыта страница.</p>
       <p class="hint">В готовой странице кнопка «слова» подсвечивает разобранные слова: синие — новые, жёлтые — «учу», без цвета — «знаю». Отметки ставятся в подсказке слова и хранятся у читателя; там же выгрузка списка в CSV для Anki или Excel.</p>
     </div>
@@ -462,6 +464,7 @@ body.words w.s2{background:none;border-bottom-color:transparent}
 w.lit{outline:2px solid var(--mark);outline-offset:1px}
 .tip{position:fixed;z-index:20;max-width:80vw;background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.35;box-shadow:0 6px 20px rgba(10,14,24,.28);pointer-events:auto}
 .tip b{display:block;font-size:13px;opacity:.75;font-weight:500}
+.tip .cj{display:block;margin-top:6px;color:var(--mark);font-size:13px;text-decoration:none}
 .tip .mk{display:flex;gap:6px;margin-top:8px}
 .tip .mk button{flex:1;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;border-radius:999px;padding:6px 10px;font:500 13px/1 inherit;min-height:32px;white-space:nowrap}
 .tip .mk button.on{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
@@ -564,6 +567,7 @@ var WS={};try{WS=JSON.parse(localStorage.getItem(WKEY)||'{}')||{};}catch(e){}
 var WV={};try{WV=JSON.parse(localStorage.getItem(VKEY)||'{}')||{};}catch(e){}
 function saveWS(){try{localStorage.setItem(WKEY,JSON.stringify(WS));}catch(e){}}
 function saveWV(){try{localStorage.setItem(VKEY,JSON.stringify(WV));}catch(e){}}
+var VERB=typeof D.verb==='string'&&/^https?:\/\//.test(D.verb)?D.verb:null;
 var GAP=D.gaps||null,hasGap=!!(GAP&&GAP.some(function(x){return x;}));
 var GKEY='ozv:g:'+(D.key||'x');
 var GA={};try{GA=JSON.parse(localStorage.getItem(GKEY)||'{}')||{};}catch(e){}
@@ -582,7 +586,7 @@ function wrapWords(t,idx,kar,gapK){
     if(isGap){
       out+='<w class="gap" data-g="1"'+(kar?' data-k="'+n+'"':'')+'>_____</w>';
     }else if(g||kar){
-      out+='<w'+(g?' class="s'+(WS[k]||0)+'" data-w="'+esc(k)+'" data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'"':'')+
+      out+='<w'+(g?' class="s'+(WS[k]||0)+'" data-w="'+esc(k)+'" data-b="'+esc(g.b||'')+'" data-t="'+esc(g.t||'')+'"'+(g.p==='v'?' data-p="v"':''):'')+
            (kar?' data-k="'+n+'"':'')+'>'+esc(m[0])+'</w>';
     }else out+=esc(m[0]);
     n++;last=m.index+m[0].length;
@@ -719,7 +723,10 @@ function showTip(w){
   var k=w.dataset.w||'',st=wordState(k);
   if(k&&!WV[k]){WV[k]=1;saveWV();wbarPaint();}
   tipEl=document.createElement('div');tipEl.className='tip';
+  var inf=(w.dataset.p==='v'&&VERB&&g.b)?g.b.trim().toLowerCase().replace(/^(sich|zu)\s+/,''):'';
+  if(inf&&!/^[a-zà-ÿäöüß]+$/i.test(inf))inf='';
   tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'')+
+    (inf?'<a class="cj" target="_blank" rel="noopener" href="'+esc(VERB+(VERB.indexOf('?')<0?'?':'&')+'w='+encodeURIComponent(inf))+'">спряжение ↗</a>':'')+
     (k?'<div class="mk"><button data-s="1"'+(st===1?' class="on"':'')+'>учу</button><button data-s="2"'+(st===2?' class="on"':'')+'>знаю</button></div>':'');
   tipEl.addEventListener('click',function(e){
     var b2=e.target.closest('button[data-s]');if(!b2)return;
@@ -825,6 +832,54 @@ function wbarInit(){
   box.parentNode.insertBefore(wbar,box);
   wbarPaint();
 }
+/* ---------- глаголы урока → Verb_de ---------- */
+const VERB_URL='https://verb-de.vercel.app/';
+function verbList(){
+  // инфинитивы из словаря: одно слово — один раз, порядок как в тексте
+  const out=[],seen=new Set();
+  if(!S.gloss)return out;
+  S.lines.forEach(l=>{
+    const s=l.text.trim();if(!s)return;
+    (s.match(WORD_RE)||[]).forEach(w=>{
+      const g=S.gloss[glossKey(w.toLowerCase(),s)];
+      if(!g||g.p!=='v'||!g.b)return;
+      const inf=g.b.trim().toLowerCase().replace(/^(sich|zu)\s+/,'');
+      if(!/^[a-zà-ÿäöüß]+$/i.test(inf)||seen.has(inf))return;
+      seen.add(inf);out.push({inf,tr:g.t||''});
+    });
+  });
+  return out;
+}
+function glossHasPos(){
+  if(!S.gloss)return false;
+  for(const k in S.gloss)if('p' in S.gloss[k])return true;
+  return false;
+}
+function verbInfo(){
+  const v=verbList();
+  $('verbInfo').textContent=!S.gloss||!Object.keys(S.gloss).length?'Глаголы берутся из словаря слов — сначала собери его.'
+    :!glossHasPos()?'Словарь собран старой версией: части речи в нём нет. Нажми «Собрать словарь» ещё раз (или удали слово и пересобери), чтобы глаголы определились.'
+    :!v.length?'Глаголов в уроке не нашлось.'
+    :'Глаголов в уроке: '+v.length+'. «Открыть глаголы» отправит их списком в Verb_de, там их можно листать и сохранять в словарь.'
+      +(viewS().verb?' В готовой странице в подсказке к глаголу будет ссылка «спряжение».':'');
+  $('verbBtn').disabled=!v.length;
+}
+function verbOpen(){
+  const v=verbList();
+  if(!v.length){toast('Глаголов нет.');return;}
+  window.open(VERB_URL+'?list='+encodeURIComponent(v.map(x=>x.inf).join(','))+'&from='+encodeURIComponent((S.title||'Урок').slice(0,40)),'_blank','noopener');
+}
+function verbCsv(){
+  const v=verbList();
+  if(!v.length){toast('Глаголов нет.');return;}
+  const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+  const csv='\ufeffverb,perevod\n'+v.map(x=>q(x.inf)+','+q(x.tr)).join('\n')+'\n';
+  const a2=document.createElement('a');
+  a2.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a2.download=(S.title||'urok').replace(/[^\w\u0400-\u04ff-]+/g,'_').slice(0,40)+'_verben.csv';
+  a2.click();setTimeout(()=>URL.revokeObjectURL(a2.href),2000);
+}
+
 /* ---------- задание «вставь слово» ---------- */
 var gapOpen=-1,plainHTML=[];
 function gapOf(i){return hasGap&&GAP[i]?GAP[i]:null;}
@@ -1958,6 +2013,7 @@ function viewS(){
   if(v.trOut===undefined)v.trOut=false;
   if(v.gloss===undefined)v.gloss=true;
   if(v.gaps===undefined)v.gaps=true;
+  if(v.verb===undefined)v.verb=true;
   if(v.markerOut===undefined)v.markerOut=v.marker!==false;
   if(!v.layout)v.layout='plain';
   return S.view;
@@ -1974,7 +2030,7 @@ function paintView(){
   document.querySelectorAll('[data-view]').forEach(b=>{const on=!!v[b.dataset.view];b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
   document.querySelectorAll('[data-lay]').forEach(b=>{const on=v.layout===b.dataset.lay;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
   $('layHint').textContent=LAY_HINT[v.layout]||'';
-  glossInfo();gapInfo();
+  glossInfo();gapInfo();verbInfo();
   document.body.classList.toggle('notr',!v.tr);
   document.body.classList.toggle('nomk',!v.marker);
 }
@@ -2370,7 +2426,7 @@ function glossOut(){
     const s=l.text.trim(),m={};
     if(s)(s.match(WORD_RE)||[]).forEach(w=>{
       const k=w.toLowerCase(),g=S.gloss[glossKey(k,s)];
-      if(g&&(g.t||g.b)){m[k]={b:g.b||'',t:g.t||''};any=true;}
+      if(g&&(g.t||g.b)){m[k]=g.p==='v'?{b:g.b||'',t:g.t||'',p:'v'}:{b:g.b||'',t:g.t||''};any=true;}
     });
     return m;
   });
@@ -2400,12 +2456,12 @@ async function glossBuild(){
       const part=need.slice(k,k+100);
       btn.textContent='Собираю '+Math.min(k+part.length,need.length)+'/'+need.length;
       const r=await trApiGloss(part.map(x=>({word:x.w,sentence:x.s})),from,to);
-      part.forEach((x,n)=>{const g=r[n];if(g&&(g.tr||g.base))S.gloss[x.key]={b:g.base||'',t:g.tr||''};});
+      part.forEach((x,n)=>{const g=r[n];if(g&&(g.tr||g.base))S.gloss[x.key]={b:g.base||'',t:g.tr||'',p:g.pos||''};});
       done+=part.length;save();
     }
     toast('Словарь собран: слов '+done);
   }catch(e){toast('Словарь не собрался: '+e.message+(done?' (готово '+done+')':''));}
-  glossBusy=false;btn.disabled=false;btn.textContent='Собрать словарь';glossInfo();
+  glossBusy=false;btn.disabled=false;btn.textContent='Собрать словарь';glossInfo();verbInfo();
   if(tab==='done')preview();
 }
 async function trApiGloss(items,from,to){
@@ -2419,6 +2475,54 @@ async function trApiGloss(items,from,to){
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
+}
+
+/* ---------- глаголы урока → Verb_de ---------- */
+const VERB_URL='https://verb-de.vercel.app/';
+function verbList(){
+  // инфинитивы из словаря: одно слово — один раз, порядок как в тексте
+  const out=[],seen=new Set();
+  if(!S.gloss)return out;
+  S.lines.forEach(l=>{
+    const s=l.text.trim();if(!s)return;
+    (s.match(WORD_RE)||[]).forEach(w=>{
+      const g=S.gloss[glossKey(w.toLowerCase(),s)];
+      if(!g||g.p!=='v'||!g.b)return;
+      const inf=g.b.trim().toLowerCase().replace(/^(sich|zu)\s+/,'');
+      if(!/^[a-zà-ÿäöüß]+$/i.test(inf)||seen.has(inf))return;
+      seen.add(inf);out.push({inf,tr:g.t||''});
+    });
+  });
+  return out;
+}
+function glossHasPos(){
+  if(!S.gloss)return false;
+  for(const k in S.gloss)if('p' in S.gloss[k])return true;
+  return false;
+}
+function verbInfo(){
+  const v=verbList();
+  $('verbInfo').textContent=!S.gloss||!Object.keys(S.gloss).length?'Глаголы берутся из словаря слов — сначала собери его.'
+    :!glossHasPos()?'Словарь собран старой версией: части речи в нём нет. Нажми «Собрать словарь» ещё раз (или удали слово и пересобери), чтобы глаголы определились.'
+    :!v.length?'Глаголов в уроке не нашлось.'
+    :'Глаголов в уроке: '+v.length+'. «Открыть глаголы» отправит их списком в Verb_de, там их можно листать и сохранять в словарь.'
+      +(viewS().verb?' В готовой странице в подсказке к глаголу будет ссылка «спряжение».':'');
+  $('verbBtn').disabled=!v.length;
+}
+function verbOpen(){
+  const v=verbList();
+  if(!v.length){toast('Глаголов нет.');return;}
+  window.open(VERB_URL+'?list='+encodeURIComponent(v.map(x=>x.inf).join(','))+'&from='+encodeURIComponent((S.title||'Урок').slice(0,40)),'_blank','noopener');
+}
+function verbCsv(){
+  const v=verbList();
+  if(!v.length){toast('Глаголов нет.');return;}
+  const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+  const csv='\ufeffverb,perevod\n'+v.map(x=>q(x.inf)+','+q(x.tr)).join('\n')+'\n';
+  const a2=document.createElement('a');
+  a2.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a2.download=(S.title||'urok').replace(/[^\w\u0400-\u04ff-]+/g,'_').slice(0,40)+'_verben.csv';
+  a2.click();setTimeout(()=>URL.revokeObjectURL(a2.href),2000);
 }
 
 /* ---------- задание «вставь слово» ---------- */
@@ -2511,7 +2615,7 @@ async function gapBuild(){
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),gaps:gapOut(),lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),gaps:gapOut(),verb:viewS().verb?VERB_URL:null,lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
 }
 async function buildHTML(embed){
   const au={};
@@ -2706,7 +2810,7 @@ async function openFile(){
         if(Array.isArray(data.gloss)){            // словарь возвращаем в вид «слово + предложение»
           const g={};
           S.lines.forEach((l,n)=>{const m=data.gloss[n];if(!m)return;const s=l.text.trim();
-            for(const w in m)g[glossKey(w,s)]={b:m[w].b||'',t:m[w].t||''};});
+            for(const w in m)g[glossKey(w,s)]={b:m[w].b||'',t:m[w].t||'',p:m[w].p||''};});
           if(Object.keys(g).length)S.gloss=g;
         }
         return afterLoad('Страница открыта для правки');
@@ -2742,7 +2846,7 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>ttsAll(true),design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
@@ -2756,7 +2860,7 @@ $('nav').addEventListener('click',e=>{
   if(tab!=='sync'&&syncOn){ed.pause();syncOn=false;}
   if(tab==='audio'){renderAudio();if(!QUOTA)loadQuota();}
   if(tab==='sync'){if(syncPos===0)syncPos=firstUnmarked();renderSync();}
-  if(tab==='done'){$('mainPlayer').pause();ed.pause();glossInfo();gapInfo();preview();}
+  if(tab==='done'){$('mainPlayer').pause();ed.pause();glossInfo();gapInfo();verbInfo();preview();}
   if(tab==='text')renderLines();
   window.scrollTo(0,0);
 });
