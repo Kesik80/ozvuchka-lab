@@ -396,6 +396,7 @@ select.inp{appearance:auto}
       <p class="hint">Если перевод скрыт, у каждой реплики есть глаз — открыть перевод только этой фразы.</p>
       <div class="row views"><button class="tgl" data-view="gloss">Перевод слов</button><button class="btn mini" data-go="glossBuild" id="glossBtn">Собрать словарь</button></div>
       <p class="hint" id="glossInfo"></p>
+      <p class="hint">Кнопка «запись» в готовой странице включает микрофон у каждой реплики: слушаешь диктора, записываешь себя, «⇄ подряд» проигрывает обе. Записи живут только пока открыта страница.</p>
       <p class="hint">В готовой странице кнопка «слова» подсвечивает разобранные слова: синие — новые, жёлтые — «учу», без цвета — «знаю». Отметки ставятся в подсказке слова и хранятся у читателя; там же выгрузка списка в CSV для Anki или Excel.</p>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
@@ -462,6 +463,19 @@ w.lit{outline:2px solid var(--mark);outline-offset:1px}
 .tip .mk{display:flex;gap:6px;margin-top:8px}
 .tip .mk button{flex:1;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;border-radius:999px;padding:6px 10px;font:500 13px/1 inherit;min-height:32px;white-space:nowrap}
 .tip .mk button.on{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
+/* «повтори за диктором» */
+.mic{border:0;background:transparent;font-size:15px;line-height:1;padding:6px;border-radius:8px;opacity:.6;color:inherit}
+.mic.on{opacity:1;background:color-mix(in srgb,var(--c,#FFD84D) 25%,transparent)}
+.mic.rec{opacity:1;color:#C8323C;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.mic.rec{animation:none}}
+.recbar{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.recbar button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:999px;padding:5px 11px;font:500 13px/1 inherit;min-height:32px}
+.recbar .x{border-color:transparent;color:var(--muted)}
+.recbar .len{font-size:12px;color:var(--muted)}
+body:not(.rec) .mic,body:not(.rec) .recbar{display:none}
+.rmsg{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:12px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .rmsg{background:var(--bar);color:var(--ink);box-shadow:0 0 0 1px var(--line)}}
 .wbar{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}
 .wbar .cnts,.wbar .dls{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap}
 .wbar .cnt{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -514,7 +528,7 @@ var L=D.lines, SP={};
 (D.speakers||[]).forEach(function(s){SP[s.id]=s;});
 var V=D.view||{};
 var KEY='ozv:'+(D.key||'x')+':'+(V.tr===false?0:1)+(V.marker===false?0:1);
-var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false};
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false,rec:false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv)for(var k in P)if(k in sv)P[k]=sv[k];}catch(e){}
 function saveP(){try{localStorage.setItem(KEY,JSON.stringify(P));}catch(e){}}
 var main=new Audio(), clip=new Audio();
@@ -573,8 +587,9 @@ L.forEach(function(l,i){
     el.style.setProperty('--m','color-mix(in srgb,'+c+' 38%,transparent)');
     var playable=l.clip&&AU[l.clip] || (hasMain&&l.start!=null);
     if(!playable)el.classList.add('silent');
-    var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'');
-    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i,karOk(l))+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'');
+    var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'')+
+      '<button class="mic" aria-label="Записать себя">🎙</button>';
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t">'+wrapWords(l.text,i,karOk(l))+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'')+'<span class="rw"></span>';
     if(sp&&side[l.spk])el.classList.add('me');
     if(karOk(l))el.classList.add('kar');else if(l.wt)l.wt=null;
     if(l.tr&&V.tr!==false){var eb=el.querySelector('.eye');if(eb)eb.classList.add('on');}
@@ -654,7 +669,7 @@ function tick(){
   var t=main.currentTime;
   if(mode==='seg'&&segEnd!=null&&t>=segEnd-0.02){
     if(P.loop){main.currentTime=L[segLine].start;}
-    else{main.pause();main.currentTime=Math.max(L[segLine].start,segEnd-0.03);setAct(segLine,1);mode='full';segEnd=null;ui();return;}
+    else{var fin=segLine;main.pause();main.currentTime=Math.max(L[fin].start,segEnd-0.03);setAct(fin,1);mode='full';segEnd=null;ui();lineFinished(fin);return;}
   }
   var i=lineAt(t);
   if(mode==='full'&&i!==cur&&cur>=0&&endOf[cur]!=null&&t>=endOf[cur]-0.02&&t<endOf[cur]+0.4){
@@ -789,6 +804,86 @@ function wbarInit(){
   box.parentNode.insertBefore(wbar,box);
   wbarPaint();
 }
+/* ---------- «повтори за диктором» ---------- */
+var REC={},mine=new Audio(),stream=null,mr=null,recLine=-1,cmpFor=-1,msgT=0;
+function rmsg(t){
+  clearTimeout(msgT);
+  var old=document.querySelector('.rmsg');if(old)old.remove();
+  var e=document.createElement('div');e.className='rmsg';e.setAttribute('role','status');e.textContent=t;
+  document.body.appendChild(e);msgT=setTimeout(function(){e.remove();},3500);
+}
+function recType(){
+  var t=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'];
+  for(var i=0;i<t.length;i++)if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t[i]))return t[i];
+  return '';
+}
+function releaseMic(){
+  if(mr&&mr.state!=='inactive')try{mr.stop();}catch(e){}
+  mr=null;recLine=-1;
+  if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
+}
+function fmtLen(s){return (Math.round(s*10)/10).toFixed(1)+' с';}
+function paintRec(i){
+  var el=els[i];if(!el)return;
+  var slot=el.querySelector('.rw'),m=el.querySelector('.mic');if(!slot)return;
+  if(m){m.classList.toggle('rec',recLine===i);m.classList.toggle('on',!!REC[i]);m.textContent=recLine===i?'■':'🎙';}
+  var r=REC[i];
+  if(!r){slot.innerHTML='';return;}
+  slot.innerHTML='<span class="recbar"><button data-r="me">▶ я</button><button data-r="both">⇄ подряд</button>'+
+    '<button class="x" data-r="del">✕</button><span class="len">'+(r.len?fmtLen(r.len):'')+'</span></span>';
+}
+function stopMine(){try{mine.pause();}catch(e){}}
+function playRec(i){
+  var r=REC[i];if(!r)return;
+  stopAll();stopMine();
+  mine.src=r.url;mine.playbackRate=P.speed;
+  mine.play().catch(function(e){rmsg('Запись не играет: '+e.message);});
+}
+function playBoth(i){cmpFor=i;stopMine();playLine(i);}
+function lineFinished(i){
+  if(cmpFor===i){cmpFor=-1;setTimeout(function(){playRec(i);},250);}
+}
+async function toggleRec(i){
+  if(recLine===i){releaseMicKeepStream();return;}
+  if(recLine>=0)releaseMicKeepStream();
+  if(!window.MediaRecorder||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    rmsg('Этот браузер не умеет записывать звук');return;
+  }
+  stopAll();stopMine();
+  try{
+    if(!stream)stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){
+    rmsg(e&&e.name==='NotAllowedError'?'Нет доступа к микрофону — разреши его для этой страницы':'Микрофон недоступен: '+(e.message||e));
+    return;
+  }
+  var type=recType(),parts=[],t0=Date.now();
+  try{mr=type?new MediaRecorder(stream,{mimeType:type}):new MediaRecorder(stream);}
+  catch(e){rmsg('Запись не запустилась: '+(e.message||e));return;}
+  mr.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
+  mr.onstop=function(){
+    var idx=recLine;recLine=-1;
+    if(parts.length){
+      if(REC[idx])URL.revokeObjectURL(REC[idx].url);
+      var blob=new Blob(parts,{type:type||'audio/webm'});
+      REC[idx]={blob:blob,url:URL.createObjectURL(blob),len:(Date.now()-t0)/1000};
+    }
+    paintRec(idx);
+  };
+  recLine=i;mr.start();paintRec(i);
+}
+function releaseMicKeepStream(){if(mr&&mr.state!=='inactive'){try{mr.stop();}catch(e){}}mr=null;}
+box.addEventListener('click',function(e){
+  var m=e.target.closest('.mic');
+  if(m){e.stopPropagation();var el=m.closest('.ln');toggleRec(els.indexOf(el));return;}
+  var rb=e.target.closest('.recbar button');
+  if(rb){
+    e.stopPropagation();
+    var i=els.indexOf(rb.closest('.ln')),a2=rb.dataset.r;
+    if(a2==='me')playRec(i);
+    if(a2==='both')playBoth(i);
+    if(a2==='del'){if(REC[i])URL.revokeObjectURL(REC[i].url);delete REC[i];paintRec(i);}
+  }
+},true);
 function ui(){
   var playing=!main.paused||!clip.paused;
   playBtn.textContent=playing?'❚❚':'▶';
@@ -807,6 +902,9 @@ function ui(){
   document.body.classList.toggle('nomk',!P.mk);
   $('o-bg').classList.toggle('on',P.bg);
   document.body.classList.toggle('lnbg',P.bg);
+  $('o-rec').classList.toggle('on',P.rec);
+  $('o-rec').hidden=!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+  document.body.classList.toggle('rec',P.rec);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
 }
@@ -824,8 +922,9 @@ function playClip(i,asSeq){
 }
 clip.addEventListener('ended',function(){
   if(P.loop){clip.currentTime=0;clip.play();loop();return;}
-  if(mode==='seq'&&!P.apause){var n=nextClip(cur+1);if(n>=0){playClip(n,true);return;}}
-  setAct(cur,1);ui();
+  var fin=cur;
+  if(mode==='seq'&&!P.apause){var n=nextClip(cur+1);if(n>=0){playClip(n,true);lineFinished(fin);return;}}
+  setAct(cur,1);ui();lineFinished(fin);
 });
 function nextClip(from){for(var i=from;i<L.length;i++){if(L[i].type!=='head'&&L[i].clip&&AU[L[i].clip])return i;}return -1;}
 function playLine(i){
@@ -878,6 +977,12 @@ $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
   ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 $('o-bg').addEventListener('click',function(){P.bg=!P.bg;saveP();ui();});
+$('o-rec').addEventListener('click',function(){
+  P.rec=!P.rec;
+  if(!P.rec){releaseMic();cmpFor=-1;stopMine();for(var i=0;i<els.length;i++)paintRec(i);}
+  else rmsg('Микрофон у реплики — записать себя, потом «⇄ подряд»');
+  saveP();ui();
+});
 $('o-wd').addEventListener('click',function(){P.words=!P.words;hideTip();saveP();ui();});
 // предпросмотр в редакторе меняет вид без перезагрузки страницы
 addEventListener('message',function(e){
@@ -2225,7 +2330,7 @@ async function buildHTML(embed){
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-wd">слова</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
