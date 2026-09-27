@@ -387,6 +387,7 @@ select.inp{appearance:auto}
         <button class="tgl" data-lay="plain">Лист текста</button>
         <button class="tgl" data-lay="chat">Чат</button>
         <button class="tgl" data-lay="cards">Карточки</button>
+        <button class="tgl" data-lay="pair">Параллельно</button>
       </div>
       <p class="hint" id="layHint"></p>
       <div class="row views"><span class="hint" style="margin:0">Открывать с показанным:</span><button class="tgl" data-view="trOut">Перевод</button><button class="tgl" data-view="markerOut">Маркер</button></div>
@@ -469,6 +470,18 @@ w.lit{outline:2px solid var(--mark);outline-offset:1px}
 body.lay-chat .ln{max-width:88%;background:color-mix(in srgb,var(--c) 10%,var(--bar));border:1px solid color-mix(in srgb,var(--c) 22%,transparent);border-radius:16px 16px 16px 5px;padding:10px 12px;margin:0 0 10px}
 body.lay-chat .ln.me{margin-left:auto;border-radius:16px 16px 5px 16px}
 body.lay-chat .hd2{display:block;width:fit-content;margin:22px auto 12px}
+/* вид «параллельно»: перевод всегда рядом, без пряток */
+body.lay-pair .ln{position:relative;border-left:3px solid var(--c);padding:2px 46px 2px 12px;margin:0 0 16px}
+body.lay-pair .ln .ctl{position:absolute;right:0;top:2px;float:none;margin:0}
+body.lay-pair .ln .eye{display:none}
+body.lay-pair .ln .tr{display:block!important;margin-top:3px;font-size:15px}
+body.lay-pair .hd2{margin-top:22px}
+@media (min-width:680px){
+  body.lay-pair .ln{display:grid;grid-template-columns:1fr 1fr;column-gap:22px;grid-template-areas:"who who" "t tr"}
+  body.lay-pair .ln .who{grid-area:who}
+  body.lay-pair .ln .t{grid-area:t}
+  body.lay-pair .ln .tr{grid-area:tr;margin-top:0;font-size:16px}
+}
 /* вид «карточки» */
 body.lay-cards .ln{background:var(--bar);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:10px 12px;margin:0 0 10px}
 body.lay-cards .ln .tr{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
@@ -515,8 +528,11 @@ function src(id){
   return Promise.resolve(srcCache[id]=s);
 }
 var WKEY='ozv:w:'+(D.key||'x');   // знакомость слов живёт отдельно от настроек показа
+var VKEY='ozv:v:'+(D.key||'x');   // и отдельно — какие слова ты открывал
 var WS={};try{WS=JSON.parse(localStorage.getItem(WKEY)||'{}')||{};}catch(e){}
+var WV={};try{WV=JSON.parse(localStorage.getItem(VKEY)||'{}')||{};}catch(e){}
 function saveWS(){try{localStorage.setItem(WKEY,JSON.stringify(WS));}catch(e){}}
+function saveWV(){try{localStorage.setItem(VKEY,JSON.stringify(WV));}catch(e){}}
 var G=D.gloss||null,hasG=false;
 if(G&&G.length)for(var gi=0;gi<G.length;gi++){for(var gk in G[gi]){hasG=true;break;}if(hasG)break;}
 function wordCount(t){var re=/[\p{L}\p{M}\p{N}'\u2019-]+/gu,n=0;while(re.exec(t))n++;return n;}
@@ -663,6 +679,7 @@ function showTip(w){
   var g={b:w.dataset.b,t:w.dataset.t};if(!g.b&&!g.t)return;
   hideTip();
   var k=w.dataset.w||'',st=wordState(k);
+  if(k&&!WV[k]){WV[k]=1;saveWV();wbarPaint();}
   tipEl=document.createElement('div');tipEl.className='tip';
   tipEl.innerHTML=(g.b?'<b>'+esc(g.b)+'</b>':'')+esc(g.t||'')+
     (k?'<div class="mk"><button data-s="1"'+(st===1?' class="on"':'')+'>учу</button><button data-s="2"'+(st===2?' class="on"':'')+'>знаю</button></div>':'');
@@ -731,8 +748,11 @@ function wbarPaint(){
   wbar.querySelector('.c0').textContent=n0;
   wbar.querySelector('.c1').textContent=n1;
   wbar.querySelector('.c2').textContent=n2;
-  var b1=wbar.querySelector('[data-dl="1"]');
+  var b1=wbar.querySelector('[data-dl="learn"]');
   b1.textContent='⬇ учу ('+n1+')';b1.disabled=!n1;
+  var seen=0;for(var q in WV)if(WV[q])seen++;
+  var b2=wbar.querySelector('[data-dl="seen"]');
+  b2.textContent='⬇ смотрел ('+seen+')';b2.disabled=!seen;
 }
 function csvEsc(s){s=String(s==null?'':s);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
 function download(name,text){
@@ -741,14 +761,19 @@ function download(name,text){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(a.href);},20000);
 }
-function exportWords(onlyLearning){
-  var rows=allWords().filter(function(x){return onlyLearning?(WS[x.w]||0)===1:true;});
+function exportWords(mode){
+  var rows=allWords().filter(function(x){
+    if(mode==='learn')return (WS[x.w]||0)===1;
+    if(mode==='seen')return !!WV[x.w];
+    return true;
+  });
   if(!rows.length)return;
-  var head=['слово','словарная форма','перевод','пример','статус'].join(';');
+  var head=['слово','словарная форма','перевод','пример','статус','смотрел'].join(';');
   var st={0:'новое',1:'учу',2:'знаю'};
-  var body=rows.map(function(x){return [x.w,x.b,x.t,x.s,st[WS[x.w]||0]].map(csvEsc).join(';');}).join('\n');
+  var body=rows.map(function(x){return [x.w,x.b,x.t,x.s,st[WS[x.w]||0],WV[x.w]?'да':''].map(csvEsc).join(';');}).join('\n');
   var base=(D.title||'ozvuchka').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,40)||'ozvuchka';
-  download(base+(onlyLearning?'_ucu':'_slova')+'.csv',head+'\n'+body);
+  var suf=mode==='learn'?'_ucu':mode==='seen'?'_smotrel':'_slova';
+  download(base+suf+'.csv',head+'\n'+body);
 }
 function wbarInit(){
   if(wbar||!hasG)return;
@@ -757,8 +782,8 @@ function wbarInit(){
     '<span class="cnt"><i class="sw" style="background:#DCE8FF"></i>новых <b class="c0">0</b></span>'+
     '<span class="cnt"><i class="sw" style="background:#FFE9A8"></i>учу <b class="c1">0</b></span>'+
     '<span class="cnt"><i class="sw" style="background:transparent;box-shadow:inset 0 0 0 1px var(--line)"></i>знаю <b class="c2">0</b></span></span>'+
-    '<span class="dls"><button data-dl="1">⬇ учу (0)</button><button data-dl="0">⬇ все</button></span>';
-  wbar.addEventListener('click',function(e){var b=e.target.closest('[data-dl]');if(b)exportWords(b.dataset.dl==='1');});
+    '<span class="dls"><button data-dl="learn">⬇ учу (0)</button><button data-dl="seen">⬇ смотрел (0)</button><button data-dl="all">⬇ все</button></span>';
+  wbar.addEventListener('click',function(e){var b=e.target.closest('[data-dl]');if(b)exportWords(b.dataset.dl);});
   box.parentNode.insertBefore(wbar,box);
   wbarPaint();
 }
@@ -771,7 +796,7 @@ function ui(){
   $('o-ap').classList.toggle('on',P.apause);
   $('o-hd').classList.toggle('on',P.hide);
   $('o-tr').classList.toggle('on',P.tr);
-  $('o-tr').hidden=!anyTr;
+  $('o-tr').hidden=!anyTr||document.body.classList.contains('lay-pair');
   $('o-wd').hidden=!hasG;
   $('o-wd').classList.toggle('on',P.words);
   document.body.classList.toggle('words',hasG&&P.words);
@@ -1714,7 +1739,7 @@ function viewS(){
   if(!v.layout)v.layout='plain';
   return S.view;
 }
-const LAY_HINT={plain:'Сплошной текст, как в книге.',chat:'Реплики пузырями, говорящие по разным сторонам, у каждого свой цвет.',cards:'Каждая реплика отдельной плашкой с цветной полосой говорящего.'};
+const LAY_HINT={plain:'Сплошной текст, как в книге.',chat:'Реплики пузырями, говорящие по разным сторонам, у каждого свой цвет.',cards:'Каждая реплика отдельной плашкой с цветной полосой говорящего.',pair:'Немецкий и перевод рядом: на телефоне строка под строкой, на широком экране в два столбца. Перевод виден всегда, глазок и кнопка «перевод» не нужны.'};
 function trDir(){
   if(!S.trDir)S.trDir=(S.trLang==='uk'?'de>uk':'de>ru');
   if(!/^(de|ru|uk)>(de|ru|uk)$/.test(S.trDir))S.trDir='de>ru';
