@@ -39,14 +39,16 @@ const SCHEMA_ONE = {
 };
 
 async function ask(key, model, mime, image, prompt, one) {
+  const cfg = { temperature: 0, responseMimeType: 'application/json', responseSchema: one ? SCHEMA_ONE : SCHEMA_ALL };
+  if (/(2\.5|3|3\.5)-flash/.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };   // иначе модель «думает» по минуте
   const r = await fetchT('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data: image } }, { text: prompt }] }],
-      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: one ? SCHEMA_ONE : SCHEMA_ALL },
+      generationConfig: cfg,
     }),
-  }, 45000);
+  }, 28000);
   const txt = await r.text();
   if (!r.ok) {
     let m = 'Gemini ' + r.status;
@@ -80,7 +82,7 @@ module.exports = async function handler(req, res) {
   const lang = NAMES[String(b.lang || 'de').slice(0, 2)] || 'German';
   const to = NAMES[String(b.to || 'ru').slice(0, 2)] || 'Russian';
   const one = b.mode === 'one';
-  const max = Math.min(40, Math.max(1, Math.round(Number(b.max) || 20)));
+  const max = Math.min(40, Math.max(1, Math.round(Number(b.max) || 24)));
 
   const prompt = one
     ? 'This is a close-up of ONE object cut out of a picture-dictionary page.\n' +
@@ -89,13 +91,16 @@ module.exports = async function handler(req, res) {
       '- "tr": a one- or two-word ' + to + ' translation.\n' +
       'If the crop shows several things, name the biggest one in the middle. Answer with JSON only.'
     : 'This photo is a page from a picture dictionary or a children\'s book.\n' +
-      'Find up to ' + max + ' separate objects a learner would want to name — things, animals, people, food, vehicles. ' +
-      'Skip the background, the page itself, decorative frames, text and page numbers.\n' +
-      'For EACH object return:\n' +
-      '- "word": the dictionary form in ' + lang + ' — a noun WITH its article ("die Katze"), a verb in the infinitive.\n' +
+      'Return up to ' + max + ' entries, one per drawing a learner would name.\n' +
+      'MANY such pages are a grid of small drawings, each with its word PRINTED under or beside it. ' +
+      'When a drawing has a printed word, use that word as "word", copied exactly as printed (keep the spelling and umlauts) — ' +
+      'add the article for a noun if it is missing. Do not invent a different word for a captioned drawing, and do not skip a drawing because its caption is small.\n' +
+      'When there are no captions, name each object yourself.\n' +
+      'For EACH entry return:\n' +
+      '- "word": the ' + lang + ' word — a noun WITH its article ("die Katze"), a verb in the infinitive ("gehen").\n' +
       '- "tr": a one- or two-word ' + to + ' translation.\n' +
-      '- "box_2d": [ymin, xmin, ymax, xmax] of that object, each 0-1000 relative to the image.\n' +
-      'One entry per object, no duplicates, boxes must fit the object tightly. Answer with JSON only.';
+      '- "box_2d": [ymin, xmin, ymax, xmax] around the drawing TOGETHER with its printed word, each 0-1000 relative to the image.\n' +
+      'Go left to right, top to bottom. No duplicates. Skip the page background, borders, the page title and page numbers. Answer with JSON only.';
 
   const models = [process.env.MODEL_VISION || 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
     .filter((m, i, a) => m && a.indexOf(m) === i);

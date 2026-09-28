@@ -261,6 +261,11 @@ select.inp{appearance:auto}
         <svg id="picSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
         <p class="pichint" id="picDrawHint" hidden>Обведи предмет пальцем — и отпусти</p>
       </div>
+      <div class="row views" style="margin-top:8px">
+        <span class="hint" style="margin:0">В готовой странице:</span>
+        <button class="tgl" data-pv="1" id="picOnly1">только картинка</button>
+        <button class="tgl" data-pv="0" id="picOnly0">картинка и текст</button>
+      </div>
       <div class="row" style="margin-top:8px">
         <button class="tgl" id="picLasso" data-go="picLassoTgl">✍ Обвести</button>
         <button class="btn mini" data-go="picVoice" id="picVoiceBtn">Озвучить всё</button>
@@ -507,7 +512,7 @@ body{background:var(--paper);color:var(--ink);font:16px/1.45 "Onest",system-ui,-
 .picbox svg{position:absolute;inset:0;width:100%;height:100%}
 .picbox polygon{fill:transparent;stroke:transparent;stroke-width:4;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
 body.pmap .picbox polygon{fill:color-mix(in srgb,var(--mark) 16%,transparent);stroke:color-mix(in srgb,var(--ink) 45%,transparent)}
-.picbox polygon.on{fill:color-mix(in srgb,var(--mark) 46%,transparent);stroke:#8A6A00}
+.picbox polygon.on{fill:color-mix(in srgb,var(--mark) 28%,transparent);stroke:#8A6A00;stroke-width:5}
 .picbox polygon.ok{fill:color-mix(in srgb,#1F8A5B 40%,transparent);stroke:#1F8A5B}
 .picbox polygon.bad{fill:color-mix(in srgb,#C8323C 35%,transparent);stroke:#C8323C}
 .piclab{position:absolute;transform:translate(-50%,-50%);background:var(--ink);color:var(--paper);font-size:12px;line-height:1.25;padding:3px 7px;border-radius:7px;pointer-events:none;white-space:nowrap;max-width:44vw;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .15s}
@@ -1200,8 +1205,9 @@ function ui(){
   document.body.classList.toggle('gaps',hasGap&&P.gaps);
   if(hasGap&&P.gaps){gbarInit();gbar.hidden=false;gbarPaint();}else if(gbar)gbar.hidden=true;
   $('o-rec').classList.toggle('on',P.rec);
-  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
   $('o-rec').hidden=!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+  // урок-картинка: кнопки про текст выключены насовсем
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
   document.body.classList.toggle('rec',P.rec);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
@@ -2239,6 +2245,7 @@ function viewS(){
   if(v.gloss===undefined)v.gloss=true;
   if(v.gaps===undefined)v.gaps=true;
   if(v.verb===undefined)v.verb=true;
+  if(v.picOnly===undefined)v.picOnly=true;   // добавил фото — значит делаешь урок-картинку
   if(v.markerOut===undefined)v.markerOut=v.marker!==false;
   if(!v.layout)v.layout='plain';
   return S.view;
@@ -2832,6 +2839,19 @@ async function picApi(body){
   throw new Error('неверный код доступа');
 }
 // кусок фото под запрос: целиком или вырезанная область
+// половина разворота: та же картинка, но крупнее — модель видит подписи
+async function picHalf(side){
+  const a=A[S.pic.img];if(!a||!a.blob)throw new Error('фото потерялось');
+  const img=await new Promise((res,rej)=>{const i=new Image(),u=URL.createObjectURL(a.blob);
+    i.onload=()=>{URL.revokeObjectURL(u);res(i);};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('фото не читается'));};i.src=u;});
+  const W=img.naturalWidth,H=img.naturalHeight,ov=0.04;
+  const x0=side?Math.round(W*(0.5-ov)):0, x1=side?W:Math.round(W*(0.5+ov));
+  const w=x1-x0,k=Math.min(1,PIC_ASK/Math.max(w,H));
+  const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(H*k);
+  c.getContext('2d').drawImage(img,x0,0,w,H,0,0,c.width,c.height);
+  const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));
+  return {b64:await blobToB64(blob),x0:x0/W,kx:w/W};
+}
 async function picB64(box){
   const a=A[S.pic.img];if(!a||!a.blob)throw new Error('фото потерялось');
   const img=await new Promise((res,rej)=>{const i=new Image(),u=URL.createObjectURL(a.blob);
@@ -2864,19 +2884,28 @@ async function picDetect(){
     if(k==='new'){S.pic.areas=[];picSel=-1;renderPic();}
   }
   picBusy=true;const btn=$('picDetectBtn');btn.disabled=true;btn.textContent='Смотрю фото…';
+  const wide=S.pic.w/Math.max(1,S.pic.h)>1.35;                    // разворот на две страницы
   try{
     const [from,to]=trDir(),ui=from==='de'?to:from;
-    const j=await picApi({image:await picB64(null),mime:'image/jpeg',lang:'de',to:ui,max:24});
-    let add=0;
-    (j.items||[]).forEach(it=>{
-      const b=it.box.map(n=>Math.min(1,Math.max(0,n/1000)));
-      if(picAreas().some(a=>boxNear(a,b)))return;                 // такое место уже размечено
-      S.pic.areas.push({id:'p'+uid(),poly:[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],word:it.word,tr:it.tr||'',clip:null,gen:null});
-      add++;
-    });
-    renderPic();save();
-    toast(add?'Нашёл предметов: '+add+'. Проверь и поправь слова.':'Ничего нового не нашлось — обведи сам.');
-  }catch(e){toast('Не получилось: '+e.message);}
+    const parts=wide?[0,1]:[null];
+    let add=0,got=0;
+    for(const side of parts){
+      if(wide)btn.textContent='Страница '+(side+1)+' из 2…';
+      const src=side==null?{b64:await picB64(null),x0:0,kx:1}:await picHalf(side);
+      const j=await picApi({image:src.b64,mime:'image/jpeg',lang:'de',to:ui,max:wide?28:24});
+      (j.items||[]).forEach(it=>{
+        got++;
+        const b=it.box.map(n=>Math.min(1,Math.max(0,n/1000)));
+        const x0=src.x0+b[0]*src.kx, x1=src.x0+b[2]*src.kx;       // назад в координаты всего фото
+        const bb=[x0,b[1],x1,b[3]];
+        if(picAreas().some(a=>boxNear(a,bb)))return;              // такое место уже размечено
+        S.pic.areas.push({id:'p'+uid(),poly:[[bb[0],bb[1]],[bb[2],bb[1]],[bb[2],bb[3]],[bb[0],bb[3]]],word:it.word,tr:it.tr||'',clip:null,gen:null});
+        add++;
+      });
+      renderPic();save();
+    }
+    toast(add?'Нашёл предметов: '+add+(got>add?' (повторы отбросил)':'')+'. Проверь и поправь слова.':'Ничего нового не нашлось — обведи сам.');
+  }catch(e){toast('Не получилось: '+e.message+(picAreas().length?' Найденное до этого осталось.':''));}
   picBusy=false;btn.disabled=false;btn.textContent='Найти предметы';
 }
 function areaBox(a){
@@ -2907,6 +2936,29 @@ function simplify(pts,eps){
   }
   return out;
 }
+// выпуклая оболочка: палец рисует петли и зигзаги, а область должна выглядеть опрятно
+function hull(pts){
+  if(pts.length<4)return pts;
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lo=[],up=[];
+  for(const q of p){while(lo.length>1&&cross(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}
+  for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>1&&cross(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}
+  lo.pop();up.pop();
+  const h=lo.concat(up);
+  return h.length>2?h:pts;
+}
+// чуть скругляем углы, чтобы область не выглядела рубленой
+function smooth(pts){
+  if(pts.length<4)return pts;
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i],b=pts[(i+1)%pts.length];
+    out.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25]);
+    out.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
+  }
+  return out;
+}
 let lassoPts=null,lassoEl=null;
 function picStageDown(e){
   if(!picDraw||!S.pic)return;
@@ -2924,7 +2976,7 @@ function picStageMove(e){
 }
 async function picStageUp(){
   if(!lassoPts)return;
-  const pts=simplify(lassoPts,0.012);
+  const pts=smooth(hull(simplify(lassoPts,0.008)));
   lassoPts=null;if(lassoEl){lassoEl.remove();lassoEl=null;}
   if(pts.length<3){toast('Слишком короткая линия — обведи предмет целиком.');return;}
   const a={id:'p'+uid(),poly:pts,word:'',tr:'',clip:null,gen:null};
@@ -2963,8 +3015,11 @@ function renderPic(){
   const im=$('picImg'),src=A[S.pic.img].url||A[S.pic.img].remote;
   if(im.getAttribute('src')!==src)im.src=src;
   const ar=picAreas(),done=ar.filter(a=>a.word.trim()).length,voiced=ar.filter(a=>a.clip&&A[a.clip]).length;
-  $('picInfo').textContent=!ar.length?'Нажми «Найти предметы» — или «Обвести» и обведи пальцем.'
-    :'Областей: '+ar.length+(done<ar.length?', без слова: '+(ar.length-done):'')+', озвучено: '+voiced+' из '+done+'.';
+  const only=!!viewS().picOnly,lines=S.lines.filter(l=>l.type!=='head'&&l.text.trim()).length;
+  $('picOnly1').classList.toggle('on',only);$('picOnly0').classList.toggle('on',!only);
+  $('picInfo').textContent=(!ar.length?'Нажми «Найти предметы» — или «Обвести» и обведи пальцем.'
+    :'Областей: '+ar.length+(done<ar.length?', без слова: '+(ar.length-done):'')+', озвучено: '+voiced+' из '+done+'.')
+    +(lines?(only?' Текст урока ('+lines+' реплик) в страницу не попадёт.':' Вместе с картинкой пойдёт и текст урока ('+lines+' реплик).'):'');
   $('picSvg').innerHTML=ar.map((a,i)=>'<polygon data-i="'+i+'" class="'+(i===picSel?'sel':(a.word.trim()?'':'nw'))+'" points="'+
     a.poly.map(p=>(p[0]*1000).toFixed(1)+','+(p[1]*1000).toFixed(1)).join(' ')+'"></polygon>').join('');
   $('picList').innerHTML=ar.map((a,i)=>'<div class="parea'+(i===picSel?' on':'')+'" data-i="'+i+'">'+
@@ -2981,6 +3036,11 @@ function renderPic(){
 $('picStage').addEventListener('pointerdown',picStageDown);
 $('picStage').addEventListener('pointermove',picStageMove);
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('picStage').addEventListener(ev,picStageUp));
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-pv]');if(!b)return;
+  viewS().picOnly=b.dataset.pv==='1';renderPic();save();
+  if(tab==='done')preview();
+});
 $('picSvg').addEventListener('click',e=>{
   const g=e.target.closest('polygon');if(!g||picDraw)return;
   picSel=+g.dataset.i;renderPic();
@@ -3198,13 +3258,26 @@ async function gapBuild(){
   if(tab==='done')preview(true);
 }
 /* ---------- export ---------- */
+function picOnly(){return !!(viewS().picOnly&&picOut());}
 function projectData(){
-  return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),gaps:gapOut(),pic:picOut(),verb:viewS().verb?VERB_URL:null,lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
+  const only=picOnly();          // урок-картинка: текст, его звук и упражнения в страницу не идут
+  return {key:S.key,title:S.title,subtitle:S.subtitle,main:only?null:(S.main&&A[S.main]?S.main:null),speakers:only?[]:S.speakers,
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},
+    gloss:only?null:glossOut(),gaps:only?null:gapOut(),pic:picOut(),verb:(!only&&viewS().verb)?VERB_URL:null,
+    lines:only?[]:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
+}
+// какие файлы реально нужны этой странице (а не всему проекту)
+function idsOf(d){
+  const s=new Set();
+  if(d.main)s.add(d.main);
+  (d.lines||[]).forEach(l=>{if(l.clip)s.add(l.clip);});
+  if(d.pic){if(d.pic.img)s.add(d.pic.img);(d.pic.areas||[]).forEach(a=>{if(a.clip)s.add(a.clip);});}
+  return s;
 }
 async function buildHTML(embed){
+  const data=projectData();
   const au={};let kept=0;
-  for(const id of usedIds()){
+  for(const id of idsOf(data)){
     const a=A[id];if(!a)continue;
     if(!a.remote){au[id]=embed?await blobToData(a.blob):a.url;continue;}
     if(!embed){au[id]=a.remote;continue;}
@@ -3221,7 +3294,7 @@ async function buildHTML(embed){
     '<div id="pic"></div>\n<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
     '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
-    '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
+    '<script type="application/json" id="d">'+j(data)+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
 }
@@ -3247,8 +3320,8 @@ async function previewNow(force){
   if(pvUrl)URL.revokeObjectURL(pvUrl);
   pvUrl=URL.createObjectURL(new Blob([html],{type:'text/html'}));
   $('pv').src=pvUrl;
-  let size=0;for(const id of usedIds())if(A[id]&&A[id].blob)size+=A[id].blob.size;
-  $('sizeInfo').textContent='Файл страницы: примерно '+fmtMB(size*1.34+html.length)+(size?' (аудио встроено внутрь).':'.');
+  let size=0;for(const id of idsOf(projectData()))if(A[id]&&A[id].blob)size+=A[id].blob.size;
+  $('sizeInfo').textContent='Файл страницы: примерно '+fmtMB(size*1.34+html.length)+(size?' (звук и фото встроены внутрь).':'.');
 }
 let expBusy=false;
 async function doExport(){
