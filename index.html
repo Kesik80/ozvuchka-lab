@@ -1379,7 +1379,8 @@ function netUpdate(){
   if(navigator.onLine){$('offbar').hidden=true;return;}
   netShow('Нет сети. Озвучка, перевод и проверка не работают; правки сохраняются в браузере.');
 }
-function netFail(){
+function netFail(quiet){
+  if(quiet)return;                                   // фоновая проверка молчит: полоска только для своих нажатий
   if(!navigator.onLine)return netUpdate();
   netShow('Сервер не ответил. Проверь интернет и попробуй ещё раз.');
   clearTimeout(netT);netT=setTimeout(()=>{if(navigator.onLine)$('offbar').hidden=true;},8000);
@@ -2448,7 +2449,7 @@ async function ltApi(text,lang){
   for(let t=0;t<2;t++){
     let r;
     try{r=await fetch('/api/lt',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({text,lang:lang||'de'})});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
+    catch(e){netFail(ltQuiet);throw new Error('нет связи с сервером');}
     let j={};try{j=await r.json();}catch(e){}
     if(r.ok)return j;
     if(r.status===404&&!j.error)throw new Error('функция /api/lt не найдена');
@@ -2458,7 +2459,7 @@ async function ltApi(text,lang){
   }
   throw new Error('неверный код доступа');
 }
-let ltBusy=false;
+let ltBusy=false,ltQuiet=false;
 async function ltRun(idx,f,lang,state){
   const txtOf=i=>(f==='tr'?(S.lines[i].tr||''):S.lines[i].text);
   const list=idx.filter(i=>txtOf(i).trim());
@@ -2506,16 +2507,21 @@ async function ltLines(idx,quiet){
   if(ltBusy){toast('Проверка уже идёт…');return;}
   idx=idx.filter(i=>S.lines[i]&&(S.lines[i].text.trim()||(ltTrOn()&&(S.lines[i].tr||'').trim())));
   if(!idx.length){toast('Нечего проверять.');return;}
-  ltBusy=true;const btn=$('ltBtn');btn.disabled=true;btn.textContent='Проверяю…';
+  ltBusy=true;ltQuiet=!!quiet;const btn=$('ltBtn');btn.disabled=true;btn.textContent='Проверяю…';
   const state={found:0,warn:''};
   try{
     await ltRun(idx,'text','de',state);
     if(ltTrOn())await ltRun(idx,'tr',trLangCode(),state);
     if(!quiet)toast(state.found?'Найдено замечаний: '+state.found+(state.warn?' · '+state.warn:''):(state.warn||'Ошибок не нашлось'));
     else if(state.warn)console.warn('проверка: '+state.warn);
-  }catch(e){if(quiet)console.warn('проверка не удалась: '+e.message);else toast('Проверка не удалась: '+e.message);}
+    ltFails=0;
+  }catch(e){
+    ltFails++;
+    if(quiet)console.warn('проверка не удалась: '+e.message);else toast('Проверка не удалась: '+e.message);
+  }
   ltBusy=false;btn.disabled=false;ltPaint();renderLinesKeep();
-  if(ltAutoOn()&&ltDirty().length)ltSchedule(2500);   // пока ждали ответ, текст могли снова поправить
+  // после отказа отступаем всё дальше (15 с, 30 с, минута…), иначе в метро будет долбить сеть без толку
+  if(ltAutoOn()&&ltDirty().length)ltSchedule(ltFails?Math.min(120000,15000*ltFails):2500);
 }
 function ltPaint(){
   const n=S.lines.reduce((a,l)=>a+((LT[l.id]||[]).length)+((LTT[l.id]||[]).length),0);
@@ -2540,7 +2546,7 @@ function ltSkip(i,n,f){
 }
 function ltAll(){ltLines(S.lines.map((l,i)=>i));}
 /* автопроверка: через 2,5 секунды после правки, не чаще раза в 8 секунд */
-const LT_TXT={},LT_TR={};let ltTimer=0,ltLast=0;
+const LT_TXT={},LT_TR={};let ltTimer=0,ltLast=0,ltFails=0,ltWake=false;
 function ltAutoOn(){return S.ltAuto!==false;}
 function ltPaintAuto(){const b=$('ltAuto');b.classList.toggle('on',ltAutoOn());b.setAttribute('aria-pressed',ltAutoOn());}
 function ltAutoTgl(){
@@ -2557,13 +2563,19 @@ function ltDirty(){
 function ltSchedule(ms){
   if(!ltAutoOn())return;
   clearTimeout(ltTimer);
+  if(document.hidden){ltWake=true;return;}          // в свёрнутой вкладке запрос всё равно не уйдёт
   const wait=Math.max(ms||2500,8000-(Date.now()-ltLast));
   ltTimer=setTimeout(()=>{
+    if(document.hidden){ltWake=true;return;}
     if(ltBusy||trBusy){ltSchedule(3000);return;}
     const d=ltDirty();if(!d.length)return;
     ltLast=Date.now();ltLines(d,true);
   },wait);
 }
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden||!ltWake)return;
+  ltWake=false;ltSchedule(1200);                     // вернулись во вкладку — проверим то, что накопилось
+});
 
 /* ---------- распознавание записи (Gemini) ---------- */
 const STT_LIMIT=2400000;   // столько байт исходника уходит одним запросом
