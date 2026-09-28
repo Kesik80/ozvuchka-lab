@@ -1,6 +1,6 @@
 /*! pwa-sw.js — service worker
- *  Сгенерировано Icon Forge · 22.09.2026 03:44
- *  Режим кэша: smart  —  Умный
+ *  Сгенерировано Icon Forge · 28.09.2026 08:15
+ *  Режим кэша: smart — Умный
  *  Файл должен лежать в корне сайта, рядом с index.html.
  */
 'use strict';
@@ -24,6 +24,7 @@ function isNever(url) {
   return false;
 }
 function isStatic(req) {
+  // скрипты сюда не входят: из кэша они отдаются первыми, и правка в js видна только со второй загрузки
   return /\.(png|jpe?g|webp|svg|gif|ico|css|woff2?|ttf|otf)(\?|$)/i.test(req.url);
 }
 
@@ -54,6 +55,7 @@ self.addEventListener('message', function (e) {
 
 function networkFirst(req, offlineOk) {
   return fetch(req).then(function (res) {
+    // только 200: у 206 (кусок аудио или видео) cache.put всегда падает
     if (res && res.status === 200 && MODE !== 'minimal') {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { return c.put(req, copy); }).catch(function () {});
@@ -62,7 +64,8 @@ function networkFirst(req, offlineOk) {
   }).catch(function () {
     return caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(function (hit) {
       if (hit) return hit;
-      if (!offlineOk) return Response.error();   // офлайн-страницу отдаём только вместо страницы, не вместо аудио или данных
+      // офлайн-страница — только вместо страницы: иначе аудио и данные получают HTML вместо ошибки
+      if (!offlineOk) return Response.error();
       return caches.match(OFFLINE).then(function (off) { return off || Response.error(); });
     });
   });

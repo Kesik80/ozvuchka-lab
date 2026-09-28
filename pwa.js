@@ -38,7 +38,7 @@ var CFG = {
   "accent": "#1E2A44",
   "themeDark": "#10151F",
   "themeLight": "#FBFCFE",
-  "themeAuto": false,   // цвет статус-бара задан в <head> двумя meta с media — скрипту их трогать не нужно
+  "themeAuto": true,
   "statusBar": "default",
   "style": "bar",
   "delay": 1800,
@@ -243,13 +243,13 @@ function injectHead() {
   meta('apple-mobile-web-app-capable', 'yes');
   meta('apple-mobile-web-app-status-bar-style', CFG.statusBar);
   meta('apple-mobile-web-app-title', CFG.short);
-  meta('theme-color', CFG.themeDark);
+  if (!D.head.querySelector('meta[name="theme-color"][media]')) meta('theme-color', CFG.themeDark);
 
   linkTag('manifest', CFG.manifest);
   linkTag('apple-touch-icon', CFG.icon192);
   if (CFG.favicon) linkTag('icon', CFG.favicon, { sizes: '32x32' });
 
-  if (CFG.themeAuto) {
+  if (CFG.themeAuto && !D.head.querySelector('meta[name="theme-color"][media]')) {
     var mq = W.matchMedia('(prefers-color-scheme: dark)');
     var apply = function (dark) { meta('theme-color', dark ? CFG.themeDark : CFG.themeLight); };
     apply(mq.matches);
@@ -268,7 +268,11 @@ function registerSW() {
   }
   navigator.serviceWorker.register(CFG.sw, { scope: CFG.scope }).then(function (reg) {
     swReg = reg;
-    if (reg.waiting && navigator.serviceWorker.controller) showUpdateToast(reg.waiting);
+    // воркер новой версии мог остаться ждать с прошлой загрузки
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      emit('update', { apply: function () { applyUpdate(reg.waiting); } });
+      showUpdateToast(reg.waiting);
+    }
     reg.addEventListener('updatefound', function () {
       var nw = reg.installing;
       if (!nw) return;
@@ -291,7 +295,8 @@ function registerSW() {
 }
 
 function applyUpdate(worker) {
-  // новый воркер мог активироваться сам (skipWaiting в install) — тогда controllerchange уже был
+  // воркер мог активироваться сам (skipWaiting в install) — тогда controllerchange уже прошёл
+  // и postMessage ничего не даст: перезагружаем страницу сами
   if (!worker || worker.state === 'activated') { location.reload(); return; }
   wantReload = true;
   try { worker.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
