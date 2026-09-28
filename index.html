@@ -33,6 +33,27 @@ button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
+/* картинка из книжки */
+.picstage{position:relative;touch-action:none;-webkit-user-select:none;user-select:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);line-height:0}
+.picstage img{display:block;width:100%;height:auto}
+.picstage svg{position:absolute;inset:0;width:100%;height:100%}
+.picstage polygon{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:4;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer}
+.picstage polygon.sel{fill:color-mix(in srgb,var(--mark) 45%,transparent);stroke:#8A6A00;stroke-width:6}
+.picstage polygon.nw{fill:color-mix(in srgb,var(--danger) 18%,transparent);stroke:var(--danger);stroke-dasharray:6 5}
+.picstage .live{fill:color-mix(in srgb,var(--accent) 26%,transparent);stroke:var(--accent);stroke-width:5;stroke-dasharray:8 6;pointer-events:none}
+.picstage.draw{cursor:crosshair}
+.picstage.draw polygon{pointer-events:none}
+.pichint{position:absolute;left:8px;right:8px;bottom:8px;background:color-mix(in srgb,var(--ink) 82%,transparent);color:var(--paper);font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:9px;text-align:center;pointer-events:none}
+.parea{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line);border-radius:11px;background:var(--card);margin-top:8px}
+.parea.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent)}
+.parea .num{width:26px;height:26px;flex:none;border-radius:50%;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.parea .fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.parea input{border:0;background:transparent;width:100%;padding:3px 2px;border-radius:6px}
+.parea input.w{font-weight:600}
+.parea input.t{font-size:13px;color:var(--muted)}
+.parea input:focus{background:var(--paper)}
+.parea .ok{color:var(--ok);font-size:14px}
+
 /* header */
 .top{position:sticky;top:0;z-index:20;background:var(--paper);padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 8px;border-bottom:1px solid var(--line)}
 .toprow{display:flex;align-items:center;gap:10px}
@@ -53,7 +74,7 @@ main{padding:12px 14px calc(88px + env(safe-area-inset-bottom,0px));max-width:76
 .tab{display:none}.tab.on{display:block}
 
 /* bottom nav */
-nav.bn{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.bn{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.bn button{border:0;background:transparent;padding:8px 0 10px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
 nav.bn button b{font-size:20px;font-weight:400;line-height:1.2}
 nav.bn button.on{color:var(--ink);font-weight:700}
@@ -223,6 +244,30 @@ select.inp{appearance:auto}
 </header>
 
 <main>
+  <!-- КАРТИНКА -->
+  <section class="tab" id="tab-pic">
+    <div class="row">
+      <button class="btn pri" data-go="picAdd" id="picAddBtn">📷 Фото страницы</button>
+      <button class="btn" data-go="picDetect" id="picDetectBtn" hidden>Найти предметы</button>
+    </div>
+    <p class="hint" id="picInfo"></p>
+    <div id="picWrap" hidden>
+      <div class="picstage" id="picStage">
+        <img id="picImg" alt="Страница книжки">
+        <svg id="picSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <p class="pichint" id="picDrawHint" hidden>Обведи предмет пальцем — и отпусти</p>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="tgl" id="picLasso" data-go="picLassoTgl">✍ Обвести</button>
+        <button class="btn mini" data-go="picVoice" id="picVoiceBtn">Озвучить всё</button>
+        <button class="btn mini" data-go="picTr" id="picTrBtn">Перевести</button>
+        <span class="sep"></span>
+        <button class="btn mini" data-go="picDrop">Убрать фото</button>
+      </div>
+      <div id="picList"></div>
+    </div>
+  </section>
+
   <!-- TEXT -->
   <section class="tab on" id="tab-text">
     <div class="spks" id="spks"></div>
@@ -429,6 +474,7 @@ select.inp{appearance:auto}
 <nav class="bn" id="nav">
   <button class="on" data-tab="text"><b>✎</b>Текст</button>
   <button data-tab="audio"><b>♫</b>Аудио</button>
+  <button data-tab="pic"><b>🖼</b>Картинка</button>
   <button data-tab="sync"><b>⏱</b>Синхро</button>
   <button data-tab="done"><b>✓</b>Готово</button>
 </nav>
@@ -445,6 +491,26 @@ html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font:16px/1.45 "Onest",system-ui,-apple-system,Roboto,sans-serif;-webkit-tap-highlight-color:transparent;padding:calc(env(safe-area-inset-top,0px) + 18px) 18px calc(150px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:680px;margin:0 auto}
 .ln .t,.ln .tr,.tip,.hd2{overflow-wrap:anywhere}
+/* картинка из книжки */
+.pic{margin:0 0 18px;position:relative}
+.picbox{position:relative;line-height:0;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--bar)}
+.picbox img{display:block;width:100%;height:auto}
+.picbox svg{position:absolute;inset:0;width:100%;height:100%}
+.picbox polygon{fill:transparent;stroke:transparent;stroke-width:4;stroke-linejoin:round;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
+body.pmap .picbox polygon{fill:color-mix(in srgb,var(--mark) 16%,transparent);stroke:color-mix(in srgb,var(--ink) 45%,transparent)}
+.picbox polygon.on{fill:color-mix(in srgb,var(--mark) 46%,transparent);stroke:#8A6A00}
+.picbox polygon.ok{fill:color-mix(in srgb,#1F8A5B 40%,transparent);stroke:#1F8A5B}
+.picbox polygon.bad{fill:color-mix(in srgb,#C8323C 35%,transparent);stroke:#C8323C}
+.piclab{position:absolute;transform:translate(-50%,-50%);background:var(--ink);color:var(--paper);font-size:12px;line-height:1.25;padding:3px 7px;border-radius:7px;pointer-events:none;white-space:nowrap;max-width:44vw;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .15s}
+body.plab .piclab{opacity:1}
+.picnow{margin-top:10px;min-height:30px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.picnow b{font:600 20px/1.2 "Literata",Georgia,serif}
+.picnow i{font-style:normal;color:var(--muted);font-size:14px}
+.picbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--muted)}
+.picbar button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:7px 12px;font:500 13px/1 inherit;min-height:36px}
+.picbar button.on{background:var(--mark);border-color:var(--mark);color:#1E2A44}
+.picbar .q{flex-basis:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.picbar .q b{font:600 18px/1.2 "Literata",Georgia,serif;color:var(--ink)}
 h1{font:600 26px/1.2 "Literata",Georgia,serif;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 22px}
 .hd2{display:inline-block;font-weight:700;font-size:13px;letter-spacing:.06em;color:#fff;background:var(--c,#1E2A44);padding:3px 10px;border-radius:6px;margin:22px 0 8px}
@@ -564,7 +630,7 @@ var L=Array.isArray(D.lines)?D.lines:[], SP={};
 var V=D.view||{};
 var KEY='ozv:'+(D.key||'x');
 var DEF=(V.tr===false?0:1)+''+(V.marker===false?0:1);   // как урок открывается по замыслу автора
-var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false,rec:false,gaps:false};
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false,rec:false,gaps:false,plab:false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');
   if(sv){for(var k in P)if(k in sv)P[k]=sv[k];
     if(sv._d!==DEF){P.tr=V.tr!==false;P.mk=V.marker!==false;}}   // автор поменял умолчания — перевод и маркер берём заново
@@ -615,6 +681,88 @@ function wrapWords(t,idx,kar,gapK){
   }
   return out+esc(t.slice(last));
 }
+/* ---------- картинка из книжки ---------- */
+var PIC=(D.pic&&D.pic.img&&AU[D.pic.img]&&Array.isArray(D.pic.areas)&&D.pic.areas.length)?D.pic:null;
+var picAud=new Audio(),picSel=-1,picQ=-1,picDone={},picEls=[];
+function picPoly(a){return a.poly.map(function(p){return (p[0]*1000).toFixed(1)+','+(p[1]*1000).toFixed(1);}).join(' ');}
+function picMid(a){
+  var x=0,y=0;a.poly.forEach(function(p){x+=p[0];y+=p[1];});
+  return [x/a.poly.length,y/a.poly.length];
+}
+function picBuild(){
+  if(!PIC)return;
+  var host=document.getElementById('pic');
+  host.className='pic';
+  host.innerHTML='<div class="picbox"><img alt="Страница книжки" src="'+esc(AU[PIC.img])+'">'+
+    '<svg viewBox="0 0 1000 1000" preserveAspectRatio="none">'+
+    PIC.areas.map(function(a,i){return '<polygon data-i="'+i+'" points="'+picPoly(a)+'"></polygon>';}).join('')+
+    '</svg>'+
+    PIC.areas.map(function(a,i){var m=picMid(a);
+      return '<span class="piclab" data-l="'+i+'" style="left:'+(m[0]*100).toFixed(2)+'%;top:'+(m[1]*100).toFixed(2)+'%">'+esc(a.word)+'</span>';}).join('')+
+    '</div>'+
+    '<div class="picnow" id="picnow"></div>'+
+    '<div class="picbar q" id="picq"></div>';
+  picEls=[].slice.call(host.querySelectorAll('polygon'));
+  host.addEventListener('click',function(e){
+    var q=e.target.closest('[data-pq]');
+    if(q){
+      if(q.dataset.pq==='say')picPlay(picQ);
+      else{picEls[picQ]&&picEls[picQ].classList.add('bad');
+        setTimeout(function(){picEls.forEach(function(g2){g2.classList.remove('bad');});},500);
+        picQuiz();}
+      return;
+    }
+    var g=e.target.closest('polygon');if(!g)return;
+    picTap(+g.dataset.i);
+  });
+}
+function picPlay(i){
+  var a=PIC.areas[i];if(!a||!a.clip||!AU[a.clip])return;
+  src(a.clip).then(function(s){if(!s)return;picAud.src=s;picAud.currentTime=0;picAud.playbackRate=P.speed;
+    picAud.play().catch(function(e){rmsg('Звук не пошёл: '+(e&&e.message||e));});});
+}
+function picSay(i){
+  var a=PIC.areas[i];if(!a)return;
+  var n=document.getElementById('picnow');
+  if(n)n.innerHTML='<b>'+esc(a.word)+'</b>'+(a.tr&&P.tr?'<i>'+esc(a.tr)+'</i>':'');
+}
+function picTap(i){
+  if(picQ>=0)return picAnswer(i);
+  picEls.forEach(function(g,n){g.classList.toggle('on',n===i);});
+  picSel=i;picSay(i);picPlay(i);
+}
+/* «найди предмет»: страница называет слово, ты тыкаешь в него */
+function picQuiz(next){
+  var left=PIC.areas.map(function(a,i){return i;}).filter(function(i){return !picDone[i];});
+  if(!left.length){
+    picDone={};picBar('Всё найдено! Начать заново — нажми «найди предмет» ещё раз.');
+    picQ=-1;document.body.classList.remove('pquiz');ui();return;
+  }
+  picQ=left[Math.floor(Math.random()*left.length)];
+  picEls.forEach(function(g){g.classList.remove('on','ok','bad');});
+  var n=document.getElementById('picnow');if(n)n.innerHTML='';
+  picBar(null);
+  if(next!==false)picPlay(picQ);
+}
+function picAnswer(i){
+  var g=picEls[i];
+  if(i===picQ){
+    picDone[i]=1;g.classList.add('ok');
+    picSay(i);
+    setTimeout(function(){g.classList.remove('ok');picQuiz();},900);
+  }else{
+    g.classList.add('bad');
+    setTimeout(function(){g.classList.remove('bad');},600);
+  }
+}
+function picBar(msg){
+  var b=document.getElementById('picq');if(!b)return;
+  var tot=PIC.areas.length,ok=0;for(var k in picDone)ok++;
+  b.innerHTML=msg?esc(msg)
+    :'<b>Найди: '+esc(PIC.areas[picQ]?PIC.areas[picQ].word:'')+'</b>'+
+     '<button data-pq="say">🔊 ещё раз</button><button data-pq="skip">пропустить</button>'+
+     '<span>найдено '+ok+' из '+tot+'</span>';
+}
 var box=document.getElementById('txt'), els=[];
 document.body.classList.add('lay-'+(/^[a-z]+$/.test(V.layout||'')?V.layout:'plain'));
 var side={};(D.speakers||[]).forEach(function(s,i){side[s.id]=i%2===1;});
@@ -651,7 +799,7 @@ L.forEach(function(l,i){
   }
   els[i]=el; box.appendChild(el);
 });
-var anyTr=L.some(function(l){return l.tr;});
+var anyTr=L.some(function(l){return l.tr;})||!!(PIC&&PIC.areas.some(function(a){return a.tr;}));
 /* timings */
 var timed=[];
 L.forEach(function(l,i){if(l.type!=='head'&&l.start!=null)timed.push(i);});
@@ -1031,11 +1179,19 @@ function ui(){
   document.body.classList.toggle('nomk',!P.mk);
   $('o-bg').classList.toggle('on',P.bg);
   document.body.classList.toggle('lnbg',P.bg);
+  if(picSel>=0&&PIC)picSay(picSel);
+  $('o-pl').hidden=!PIC;
+  $('o-pq').hidden=!PIC;
+  $('o-pl').classList.toggle('on',P.plab);
+  $('o-pq').classList.toggle('on',picQ>=0);
+  document.body.classList.toggle('plab',!!PIC&&P.plab);
+  document.body.classList.toggle('pmap',!!PIC&&(P.plab||picQ>=0));
   $('o-gap').hidden=!hasGap;
   $('o-gap').classList.toggle('on',P.gaps);
   document.body.classList.toggle('gaps',hasGap&&P.gaps);
   if(hasGap&&P.gaps){gbarInit();gbar.hidden=false;gbarPaint();}else if(gbar)gbar.hidden=true;
   $('o-rec').classList.toggle('on',P.rec);
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
   $('o-rec').hidden=!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
   document.body.classList.toggle('rec',P.rec);
   document.body.classList.toggle('hide',P.hide);
@@ -1114,6 +1270,11 @@ $('o-tr').addEventListener('click',function(){P.tr=!P.tr;saveP();
   ui();});
 $('o-mk').addEventListener('click',function(){P.mk=!P.mk;saveP();ui();});
 $('o-bg').addEventListener('click',function(){P.bg=!P.bg;saveP();ui();});
+$('o-pl').addEventListener('click',function(){P.plab=!P.plab;saveP();ui();});
+$('o-pq').addEventListener('click',function(){
+  if(picQ>=0){picQ=-1;document.body.classList.remove('pquiz');var b=document.getElementById('picq');if(b)b.innerHTML='';ui();return;}
+  document.body.classList.add('pquiz');ui();picQuiz();
+});
 $('o-gap').addEventListener('click',function(){
   P.gaps=!P.gaps;gapOpen=-1;saveP();
   for(var i=0;i<L.length;i++)if(gapOf(i))gapRender(i);
@@ -1135,11 +1296,17 @@ addEventListener('message',function(e){
   els.forEach(function(x){if(x&&x.classList){x.classList.remove('flip');var b2=x.querySelector('.eye');if(b2)b2.classList.toggle('on',P.tr);}});
   ui();
 });
+picBuild();
+if(PIC&&!L.length){   // урок-картинка: кнопки про текст здесь ни к чему
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){$(id).hidden=true;$(id).dataset.off='1';});
+}
 if(!hasMain&&nextClip(0)<0){
   var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;
-  ['o-sp','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){$(id).hidden=true;});
-  if(!anyTr&&!hasG&&!hasGap){$('pl').hidden=true;document.body.style.paddingBottom='calc(24px + env(safe-area-inset-bottom,0px))';}
+  ['o-lp','o-ap','o-mk','o-bg'].forEach(function(id){$(id).hidden=true;});
+  if(!PIC)$('o-sp').hidden=true;
+  if(!anyTr&&!hasG&&!hasGap&&!PIC){$('pl').hidden=true;document.body.style.paddingBottom='calc(24px + env(safe-area-inset-bottom,0px))';}
 }
+if(PIC&&!L.length)document.getElementById('txt').hidden=true;
 ui();
 if(hasGap&&P.gaps)for(var q=0;q<L.length;q++)if(gapOf(q))gapRender(q);
 })();
@@ -1219,7 +1386,10 @@ function saveNow(){
 }
 function addBlob(blob){const id='a'+uid();A[id]={blob,url:URL.createObjectURL(blob)};idbPut('a:'+id,blob).catch(e=>{console.error(e);toast('Аудио не записалось в память браузера. Сохрани проект файлом.');});return id;}
 function addRemote(url){const id='r'+uid();A[id]={remote:url};return id;}
-function usedIds(){const s=new Set();if(S.main)s.add(S.main);S.lines.forEach(l=>{if(l.clip)s.add(l.clip);});return s;}
+function usedIds(){const s=new Set();if(S.main)s.add(S.main);S.lines.forEach(l=>{if(l.clip)s.add(l.clip);});
+  if(S.whole&&Array.isArray(S.whole.parts))S.whole.parts.forEach(x=>{if(x&&x.id)s.add(x.id);});   // куски недособранной дорожки
+  if(S.pic){if(S.pic.img)s.add(S.pic.img);(S.pic.areas||[]).forEach(a=>{if(a.clip)s.add(a.clip);});}
+  return s;}
 // лишние записи убираем по ходу, а не только при следующем запуске;
 // пауза длиннее, чем живёт кнопка «Вернуть» в уведомлении
 let gcT=0;
@@ -1507,6 +1677,13 @@ function markCur(i){
   $('lines').querySelectorAll('.card.cur').forEach(c=>c.classList.remove('cur'));
   if(i>=0){const c=$('lines').querySelector('.card[data-i="'+i+'"]');if(c)c.classList.add('cur');}
 }
+// проиграть отдельный клип (область на картинке)
+function edPlayBlob(id){
+  if(!id||!srcOf(id))return;
+  if(edSrcId===id&&!ed.paused){ed.pause();return;}
+  setEdSrc(id);ed.currentTime=0;edStop=null;edLine=-1;
+  ed.play().catch(e=>toast('Не играет: '+e.message));
+}
 function edPlay(i){
   const l=S.lines[i];
   if(syncOn){syncOn=false;}
@@ -1684,6 +1861,7 @@ async function api(body,asBlob){
       if(!p)throw new Error('нужен код доступа');
       PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;
     }
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     const c=String(j.code||'');
     const nice=c==='paid_voice'?j.error:/quota/.test(c)?(j.error||'кончились символы'):/invalid_api_key/.test(c)?'ключ не работает':/voice_not_found/.test(c)?'голоса нет в этом аккаунте — выбери голос заново':null;
     const err=new Error(nice||j.error||('HTTP '+r.status));err.code=j.code;throw err;
@@ -2084,6 +2262,7 @@ async function trApi(lines,context,from,to){
     if(r.status===404&&!j.error)throw new Error('функция /api/translate не найдена');
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
     if(j.tried)console.warn('перевод не вышел: '+j.tried.join(' | '));
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
@@ -2144,6 +2323,12 @@ async function audioDuration(blob){
     a.preload='metadata';a.onloadedmetadata=()=>fin(isFinite(a.duration)?a.duration:0);a.onerror=()=>fin(0);a.src=u;});}
 }
 let wholeBusy=false;
+// подпись задания: поменялся текст, голос или настройки — прошлые куски не годятся
+function wholeSig(chunks,v,e){
+  return JSON.stringify([v.id,e.model,e.lang,e.stab,e.v3stab,e.sim,e.style,e.speed,e.seedOn?e.seed:0,e.dot,e.tags,
+    chunks.map(c=>c.items.map(x=>x.i+'\u001f'+x.t))]);
+}
+function dropWhole(){if(S.whole){delete S.whole;save();gcLater();}}
 async function ttsWhole(){
   if(wholeBusy)return;
   if(ttsBusy||oneBusy){toast('Дождись текущей озвучки.');return;}
@@ -2160,13 +2345,32 @@ async function ttsWhole(){
   idx.forEach((i,n)=>{const t=texts[n];if(!cur||cur.len+t.length+2>2400){cur={items:[],len:pre.length};chunks.push(cur);}cur.items.push({i,t});cur.len+=t.length+2;});
   const total=chunks.reduce((a,c)=>a+c.len,0);
   const genClips=S.lines.filter(l=>l.clip&&l.gen).length;
-  const k=await sheet('Озвучить весь текст одним файлом (~'+nf(total)+' символов'+(chunks.length>1?', частей: '+chunks.length:'')+')?',[
-    {k:'go',icon:'🗣',label:'Озвучить'+(genClips?' — клипы ElevenLabs у строк уберу':'')},{k:null,icon:'✕',label:'Отмена'}]);
-  if(k!=='go')return;
+  const sig=wholeSig(chunks,v,e);
+  // прошлая сборка могла оборваться — оплаченные куски лежат в памяти браузера
+  let W=null;
+  if(S.whole&&S.whole.sig===sig&&Array.isArray(S.whole.parts)&&S.whole.parts.length&&S.whole.parts.every(x=>x&&A[x.id])){
+    if(S.whole.parts.length>=chunks.length)W=S.whole;
+    else{
+      const k2=await sheet('Прошлая сборка оборвалась: готово '+S.whole.parts.length+' из '+chunks.length+' частей. Их не придётся озвучивать заново.',[
+        {k:'go',icon:'⏭',label:'Продолжить с части '+(S.whole.parts.length+1)},
+        {k:'new',icon:'⟲',label:'Начать заново (спишутся символы)',danger:true},
+        {k:null,icon:'✕',label:'Отмена'}]);
+      if(!k2)return;
+      if(k2==='go')W=S.whole;else dropWhole();
+    }
+  }else if(S.whole)dropWhole();
+  if(!W){
+    const k=await sheet('Озвучить весь текст одним файлом (~'+nf(total)+' символов'+(chunks.length>1?', частей: '+chunks.length:'')+')?',[
+      {k:'go',icon:'🗣',label:'Озвучить'+(genClips?' — клипы ElevenLabs у строк уберу':'')},{k:null,icon:'✕',label:'Отмена'}]);
+    if(k!=='go')return;
+    W={sig,parts:[],prev:''};
+  }
   wholeBusy=true;const btn=$('ttsWholeBtn');btn.disabled=true;
   try{
-    const blobs=[],starts={},wts={};let offset=0,prevText='';
-    for(let c=0;c<chunks.length;c++){
+    const starts={},wts={};
+    let offset=W.parts.reduce((a,x)=>a+(x.dur||0),0),prevText=W.prev||'';
+    W.parts.forEach(x=>(x.lines||[]).forEach(y=>{starts[y.i]=y.start;wts[y.i]=y.wt;}));
+    for(let c=W.parts.length;c<chunks.length;c++){
       btn.textContent='Озвучиваю часть '+(c+1)+' из '+chunks.length+'…';
       const ch=chunks[c];let text=pre;const pos=[];
       ch.items.forEach((it,n)=>{if(n)text+='\n\n';pos.push(text.length);text+=it.t;});
@@ -2177,7 +2381,7 @@ async function ttsWhole(){
       const j=await api(req);
       if(!pin&&Number.isInteger(j.key)&&j.key!==ACC){ACC=j.key;rememberAcc();}
       const bin=atob(j.audio||'');const u8=new Uint8Array(bin.length);for(let q=0;q<bin.length;q++)u8[q]=bin.charCodeAt(q);
-      const blob=new Blob([u8],{type:'audio/mpeg'});blobs.push(blob);
+      const blob=new Blob([u8],{type:'audio/mpeg'});
       const st=j.starts||[],en=j.ends||[],exact=j.chars===text.length,scale=exact?1:(j.chars?j.chars/text.length:1);
       ch.items.forEach((it,n)=>{
         const ix=Math.min(st.length-1,Math.round(pos[n]*scale));const t=st[ix];
@@ -2186,16 +2390,24 @@ async function ttsWhole(){
           ? wordTimes(text,st,en,pos[n],it.t.length,Math.round(starts[it.i]*100)/100-offset)
           : null;
       });
-      offset+=await audioDuration(blob);prevText=ch.items.map(x=>x.t).join(' ');
+      const dur=await audioDuration(blob);
+      offset+=dur;prevText=ch.items.map(x=>x.t).join(' ');
+      // кусок сразу в память браузера: если вкладку убьют, озвучивать его заново не придётся
+      W.parts.push({id:addBlob(blob),dur,lines:ch.items.map(it=>({i:it.i,start:starts[it.i],wt:wts[it.i]}))});
+      W.prev=prevText;S.whole=W;save();
     }
-    const all=new Blob(blobs,{type:'audio/mpeg'});
+    const all=new Blob(W.parts.map(x=>A[x.id].blob),{type:'audio/mpeg'});
     S.main=addBlob(all);edSrcId=null;
     S.lines.forEach((l,i)=>{if(l.type==='head')return;
       if(i in starts){l.start=starts[i]!=null?Math.round(starts[i]*100)/100:null;l.wt=wts[i]||null;}
       if(l.clip&&l.gen){l.clip=null;l.gen=null;}});
-    syncPos=firstUnmarked();renderLines();renderAudio();save();if(QUOTA)loadQuota();
+    delete S.whole;
+    syncPos=firstUnmarked();renderLines();renderAudio();save();gcLater();if(QUOTA)loadQuota();
     toast('Готово: одна дорожка '+fmtS(offset)+', строки размечены');
-  }catch(err){toast('Не получилось: '+err.message);}
+  }catch(err){
+    if(W.parts.length){S.whole=W;save();toast('Оборвалось на части '+(W.parts.length+1)+' из '+chunks.length+': '+err.message+'. Нажми ещё раз — продолжу с неё.');}
+    else toast('Не получилось: '+err.message);
+  }
   wholeBusy=false;btn.disabled=false;btn.textContent='Озвучить одним файлом';
 }
 
@@ -2219,6 +2431,7 @@ async function ltApi(text,lang){
     if(r.ok)return j;
     if(r.status===404&&!j.error)throw new Error('функция /api/lt не найдена');
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
@@ -2387,6 +2600,7 @@ async function sttApi(body){
     if(r.status===404&&!j.error)throw new Error('функция /api/stt не найдена');
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
     if(j.tried)console.warn('распознавание: '+j.tried.join(' | '));
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
@@ -2513,9 +2727,305 @@ async function trApiGloss(items,from,to){
     let j={};try{j=await r.json();}catch(e){}
     if(r.ok)return j.gloss||[];
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
+}
+
+
+/* ---------- картинка из книжки ---------- */
+const PIC_MAX=1600, PIC_ASK=1024;          // храним до 1600 px, Gemini показываем 1024 px
+function picS(){if(!S.pic)S.pic=null;return S.pic;}
+function picAreas(){return (S.pic&&Array.isArray(S.pic.areas))?S.pic.areas:[];}
+let picSel=-1,picDraw=false,picBusy=false;
+
+// перерисовываем фото в JPEG нужного размера: и место экономим, и Gemini быстрее
+function picResize(file,max){
+  return new Promise((res,rej)=>{
+    const img=new Image(),u=URL.createObjectURL(file);
+    img.onload=()=>{
+      const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+      const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(u);
+      c.toBlob(b=>b?res({blob:b,w,h}):rej(new Error('не получилось сжать фото')),'image/jpeg',0.85);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('это не картинка'));};
+    img.src=u;
+  });
+}
+function blobToB64(b){return blobToData(b).then(d=>String(d).split(',')[1]||'');}
+
+async function picAdd(){
+  if(picBusy)return;
+  const f=await pickFile('image/*');
+  if(!f)return;
+  if(f.size>25*1024*1024){toast('Фото больше 25 МБ — сними поменьше.');return;}
+  if(S.pic&&picAreas().length){
+    const k=await sheet('Заменить фото? Все области и их озвучка пропадут.',
+      [{k:'go',icon:'⟲',label:'Заменить',danger:true},{k:null,icon:'✕',label:'Отмена'}]);
+    if(k!=='go')return;
+  }
+  picBusy=true;$('picAddBtn').disabled=true;toast('Готовлю фото…');
+  try{
+    const r=await picResize(f,PIC_MAX);
+    S.pic={img:addBlob(r.blob),w:r.w,h:r.h,areas:[]};
+    picSel=-1;renderPic();save();gcLater();
+    toast('Фото на месте. Нажми «Найти предметы» или обведи сам.');
+  }catch(e){toast('Не вышло: '+e.message);}
+  picBusy=false;$('picAddBtn').disabled=false;
+}
+async function picDrop(){
+  if(!S.pic)return;
+  const k=await sheet('Убрать фото и все области?',[{k:'go',icon:'🗑',label:'Убрать',danger:true},{k:null,icon:'✕',label:'Отмена'}]);
+  if(k!=='go')return;
+  S.pic=null;picSel=-1;picDrawOff();renderPic();save();gcLater();
+}
+async function picApi(body){
+  for(let t=0;t<2;t++){
+    let r;
+    try{r=await fetch('/api/vision',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
+    catch(e){netFail();throw new Error('нет связи с сервером');}
+    let j={};try{j=await r.json();}catch(e){}
+    if(r.ok){if(j.model)console.log('картинка: '+j.model);return j;}
+    if(r.status===404&&!j.error)throw new Error('функция /api/vision не найдена');
+    if(j.code==='need_pass'&&t===0){const p2=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p2)throw new Error('нужен код доступа');PASS=p2;try{localStorage.setItem('ozv:pass',p2);}catch(e){}continue;}
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
+    throw new Error(j.error||('HTTP '+r.status));
+  }
+  throw new Error('неверный код доступа');
+}
+// кусок фото под запрос: целиком или вырезанная область
+async function picB64(box){
+  const a=A[S.pic.img];if(!a||!a.blob)throw new Error('фото потерялось');
+  const img=await new Promise((res,rej)=>{const i=new Image(),u=URL.createObjectURL(a.blob);
+    i.onload=()=>{URL.revokeObjectURL(u);res(i);};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('фото не читается'));};i.src=u;});
+  const c=document.createElement('canvas');
+  if(box){
+    const pad=0.06;
+    const x0=Math.max(0,(box[0]-pad))*img.naturalWidth, y0=Math.max(0,(box[1]-pad))*img.naturalHeight;
+    const x1=Math.min(1,(box[2]+pad))*img.naturalWidth, y1=Math.min(1,(box[3]+pad))*img.naturalHeight;
+    const w=Math.max(8,Math.round(x1-x0)),h=Math.max(8,Math.round(y1-y0));
+    const k=Math.min(1,768/Math.max(w,h));
+    c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(img,x0,y0,w,h,0,0,c.width,c.height);
+  }else{
+    const k=Math.min(1,PIC_ASK/Math.max(img.naturalWidth,img.naturalHeight));
+    c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  }
+  const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));
+  return blobToB64(blob);
+}
+async function picDetect(){
+  if(picBusy||!S.pic)return;
+  if(picAreas().length){
+    const k=await sheet('Области уже есть: '+picAreas().length+'.',[
+      {k:'add',icon:'＋',label:'Дополнить новыми'},
+      {k:'new',icon:'⟲',label:'Найти заново (старые удалю)',danger:true},
+      {k:null,icon:'✕',label:'Отмена'}]);
+    if(!k)return;
+    if(k==='new'){S.pic.areas=[];picSel=-1;renderPic();}
+  }
+  picBusy=true;const btn=$('picDetectBtn');btn.disabled=true;btn.textContent='Смотрю фото…';
+  try{
+    const [from,to]=trDir(),ui=from==='de'?to:from;
+    const j=await picApi({image:await picB64(null),mime:'image/jpeg',lang:'de',to:ui,max:24});
+    let add=0;
+    (j.items||[]).forEach(it=>{
+      const b=it.box.map(n=>Math.min(1,Math.max(0,n/1000)));
+      if(picAreas().some(a=>boxNear(a,b)))return;                 // такое место уже размечено
+      S.pic.areas.push({id:'p'+uid(),poly:[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],word:it.word,tr:it.tr||'',clip:null,gen:null});
+      add++;
+    });
+    renderPic();save();
+    toast(add?'Нашёл предметов: '+add+'. Проверь и поправь слова.':'Ничего нового не нашлось — обведи сам.');
+  }catch(e){toast('Не получилось: '+e.message);}
+  picBusy=false;btn.disabled=false;btn.textContent='Найти предметы';
+}
+function areaBox(a){
+  let x0=1,y0=1,x1=0,y1=0;
+  a.poly.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  return [x0,y0,x1,y1];
+}
+function boxNear(a,b){
+  const x=areaBox(a);
+  const ix=Math.max(0,Math.min(x[2],b[2])-Math.max(x[0],b[0]))*Math.max(0,Math.min(x[3],b[3])-Math.max(x[1],b[1]));
+  const s1=(x[2]-x[0])*(x[3]-x[1]),s2=(b[2]-b[0])*(b[3]-b[1]);
+  return ix>0.55*Math.min(s1,s2);
+}
+/* обведение пальцем */
+function picLassoTgl(){picDraw?picDrawOff():picDrawOn();}
+function picDrawOn(){picDraw=true;$('picStage').classList.add('draw');$('picLasso').classList.add('on');$('picDrawHint').hidden=false;}
+function picDrawOff(){picDraw=false;const s=$('picStage');if(s)s.classList.remove('draw');const b=$('picLasso');if(b)b.classList.remove('on');const h=$('picDrawHint');if(h)h.hidden=true;}
+function picPoint(e){
+  const r=$('picStage').getBoundingClientRect();
+  return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];
+}
+function simplify(pts,eps){
+  if(pts.length<3)return pts;
+  const out=[pts[0]];
+  for(let i=1;i<pts.length;i++){
+    const l=out[out.length-1];
+    if(Math.abs(pts[i][0]-l[0])+Math.abs(pts[i][1]-l[1])>eps)out.push(pts[i]);
+  }
+  return out;
+}
+let lassoPts=null,lassoEl=null;
+function picStageDown(e){
+  if(!picDraw||!S.pic)return;
+  e.preventDefault();
+  $('picStage').setPointerCapture&&$('picStage').setPointerCapture(e.pointerId);
+  lassoPts=[picPoint(e)];
+  lassoEl=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  lassoEl.setAttribute('class','live');$('picSvg').appendChild(lassoEl);
+}
+function picStageMove(e){
+  if(!lassoPts)return;
+  e.preventDefault();
+  lassoPts.push(picPoint(e));
+  lassoEl.setAttribute('points',lassoPts.map(p=>(p[0]*1000).toFixed(1)+','+(p[1]*1000).toFixed(1)).join(' '));
+}
+async function picStageUp(){
+  if(!lassoPts)return;
+  const pts=simplify(lassoPts,0.012);
+  lassoPts=null;if(lassoEl){lassoEl.remove();lassoEl=null;}
+  if(pts.length<3){toast('Слишком короткая линия — обведи предмет целиком.');return;}
+  const a={id:'p'+uid(),poly:pts,word:'',tr:'',clip:null,gen:null};
+  const bx=areaBox(a);
+  if((bx[2]-bx[0])<0.02||(bx[3]-bx[1])<0.02){toast('Область совсем крошечная.');return;}
+  S.pic.areas.push(a);picSel=picAreas().length-1;$('picDrawHint').hidden=true;renderPic();save();
+  const k=await sheet('Что это за предмет?',[
+    {k:'ai',icon:'✨',label:'Пусть Gemini назовёт'},
+    {k:'me',icon:'⌨',label:'Напишу сам'},
+    {k:'del',icon:'🗑',label:'Убрать область',danger:true}]);
+  if(k==='del'){S.pic.areas=picAreas().filter(x=>x!==a);picSel=-1;renderPic();save();return;}
+  if(k==='ai')await picName(picAreas().indexOf(a));
+  else{const inp=$('picList').querySelector('.parea.on input.w');if(inp){inp.focus();inp.scrollIntoView({block:'center'});}}
+}
+async function picName(i){
+  const a=picAreas()[i];if(!a||picBusy)return;
+  picBusy=true;toast('Смотрю, что там…');
+  try{
+    const [from,to]=trDir(),ui=from==='de'?to:from;
+    const j=await picApi({image:await picB64(areaBox(a)),mime:'image/jpeg',lang:'de',to:ui,mode:'one'});
+    a.word=j.word||a.word;a.tr=j.tr||a.tr;a.clip=null;a.gen=null;
+    renderPic();save();toast('Это «'+a.word+'». Не угадал — поправь руками.');
+  }catch(e){toast('Не получилось: '+e.message);}
+  picBusy=false;
+}
+/* список областей */
+function renderPic(){
+  const has=!!(S.pic&&S.pic.img&&A[S.pic.img]);
+  $('picWrap').hidden=!has;
+  $('picDetectBtn').hidden=!has;
+  $('picAddBtn').textContent=has?'📷 Другое фото':'📷 Фото страницы';
+  if(!has){
+    $('picInfo').textContent='Сфотографируй страницу из книжки — Gemini найдёт на ней предметы, назовёт их по-немецки и озвучит. Что не найдёт — обведёшь пальцем сам.';
+    picDrawOff();return;
+  }
+  const im=$('picImg'),src=A[S.pic.img].url||A[S.pic.img].remote;
+  if(im.getAttribute('src')!==src)im.src=src;
+  const ar=picAreas(),done=ar.filter(a=>a.word.trim()).length,voiced=ar.filter(a=>a.clip&&A[a.clip]).length;
+  $('picInfo').textContent=!ar.length?'Нажми «Найти предметы» — или «Обвести» и обведи пальцем.'
+    :'Областей: '+ar.length+(done<ar.length?', без слова: '+(ar.length-done):'')+', озвучено: '+voiced+' из '+done+'.';
+  $('picSvg').innerHTML=ar.map((a,i)=>'<polygon data-i="'+i+'" class="'+(i===picSel?'sel':(a.word.trim()?'':'nw'))+'" points="'+
+    a.poly.map(p=>(p[0]*1000).toFixed(1)+','+(p[1]*1000).toFixed(1)).join(' ')+'"></polygon>').join('');
+  $('picList').innerHTML=ar.map((a,i)=>'<div class="parea'+(i===picSel?' on':'')+'" data-i="'+i+'">'+
+    '<span class="num">'+(i+1)+'</span>'+
+    '<span class="fields"><input class="w" data-f="word" value="'+esc(a.word)+'" placeholder="Слово по-немецки" aria-label="Слово">'+
+    '<input class="t" data-f="tr" value="'+esc(a.tr)+'" placeholder="перевод" aria-label="Перевод"></span>'+
+    (a.clip&&A[a.clip]?'<span class="ok">🔊</span>':'')+
+    '<button class="ib" data-pa="ai" title="Пусть Gemini назовёт">✨</button>'+
+    '<button class="ib" data-pa="tts" title="Озвучить">🗣</button>'+
+    '<button class="ib" data-pa="del" title="Убрать">🗑</button></div>').join('');
+  $('picVoiceBtn').disabled=!done;
+  $('picTrBtn').disabled=!done;
+}
+$('picStage').addEventListener('pointerdown',picStageDown);
+$('picStage').addEventListener('pointermove',picStageMove);
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('picStage').addEventListener(ev,picStageUp));
+$('picSvg').addEventListener('click',e=>{
+  const g=e.target.closest('polygon');if(!g||picDraw)return;
+  picSel=+g.dataset.i;renderPic();
+  const row=$('picList').querySelector('.parea.on');if(row)row.scrollIntoView({block:'center',behavior:'smooth'});
+  const a=picAreas()[picSel];if(a&&a.clip&&A[a.clip])edPlayBlob(a.clip);
+});
+$('picList').addEventListener('input',e=>{
+  const inp=e.target.closest('input[data-f]');if(!inp)return;
+  const i=+inp.closest('.parea').dataset.i,a=picAreas()[i];if(!a)return;
+  a[inp.dataset.f]=inp.value;
+  if(inp.dataset.f==='word'){a.clip=null;a.gen=null;}
+  save();
+});
+$('picList').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-pa]');
+  const row=e.target.closest('.parea');if(!row)return;
+  const i=+row.dataset.i,a=picAreas()[i];if(!a)return;
+  if(!b){picSel=i;renderPic();return;}
+  if(b.dataset.pa==='del'){S.pic.areas.splice(i,1);picSel=-1;renderPic();save();gcLater();return;}
+  if(b.dataset.pa==='ai'){picSel=i;renderPic();await picName(i);return;}
+  if(b.dataset.pa==='tts'){picSel=i;renderPic();await picVoiceOne(i);}
+});
+async function picVoiceOne(i){
+  const a=picAreas()[i];if(!a||!a.word.trim())  {toast('Сначала впиши слово.');return;}
+  if(picBusy||ttsBusy||oneBusy||wholeBusy){toast('Дождись текущей озвучки.');return;}
+  picBusy=true;toast('Озвучиваю…');
+  try{await picTtsOne(a);renderPic();save();edPlayBlob(a.clip);toast('Готово');}
+  catch(e){toast('Не озвучилось: '+e.message);}
+  picBusy=false;
+}
+async function picTtsOne(a){
+  const e=elS(),v=e.def||null;
+  if(!v)throw new Error('выбери голос по умолчанию во вкладке «Аудио»');
+  const v3=e.model==='eleven_v3';
+  let text=a.word.trim();
+  if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
+  if(v3&&e.tags.trim())text=e.tags.trim()+' '+text;
+  const pin=v.pin!=null?!!v.pin:v.key!=null;
+  const req={a:'tts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,
+    stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
+  if(e.seedOn)req.seed=e.seed;
+  const r=await api(req,true);
+  if(!pin&&Number.isInteger(r.key)&&r.key!==ACC){ACC=r.key;rememberAcc();}
+  a.clip=addBlob(r.blob);a.gen=a.word.trim()+'|'+v.id+'|'+e.model+'|'+e.speed;
+}
+async function picVoice(){
+  if(picBusy||ttsBusy||oneBusy||wholeBusy){toast('Дождись текущей озвучки.');return;}
+  const need=picAreas().filter(a=>a.word.trim()&&!(a.clip&&A[a.clip]&&a.gen===a.word.trim()+'|'+((elS().def||{}).id)+'|'+elS().model+'|'+elS().speed));
+  if(!need.length){toast('Всё уже озвучено.');return;}
+  const k=await sheet('Озвучить областей: '+need.length+'?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
+  if(k!=='go')return;
+  picBusy=true;const btn=$('picVoiceBtn');btn.disabled=true;
+  let done=0;
+  try{
+    for(const a of need){btn.textContent=(done+1)+'/'+need.length;await picTtsOne(a);done++;renderPic();save();}
+    toast('Озвучено: '+done);
+  }catch(e){toast('Оборвалось на '+(done+1)+': '+e.message+(done?' (готово '+done+')':''));}
+  picBusy=false;btn.disabled=false;btn.textContent='Озвучить всё';renderPic();if(QUOTA)loadQuota();
+}
+async function picTr(){
+  const need=picAreas().filter(a=>a.word.trim());
+  if(!need.length){toast('Нечего переводить.');return;}
+  if(picBusy)return;
+  picBusy=true;const btn=$('picTrBtn');btn.disabled=true;btn.textContent='Перевожу…';
+  try{
+    const [from,to]=trDir(),ui=from==='de'?to:from;
+    const out=await trApi(need.map(a=>a.word.trim()),[],'de',ui);
+    need.forEach((a,n)=>{if(out[n])a.tr=String(out[n]).trim();});
+    renderPic();save();toast('Переведено: '+need.length);
+  }catch(e){toast('Перевод не удался: '+e.message);}
+  picBusy=false;btn.disabled=false;btn.textContent='Перевести';
+}
+function picOut(){
+  if(!S.pic||!S.pic.img||!A[S.pic.img])return null;
+  const ar=picAreas().filter(a=>a.word.trim());
+  if(!ar.length)return null;
+  return {img:S.pic.img,w:S.pic.w,h:S.pic.h,
+    areas:ar.map(a=>({poly:a.poly.map(p=>[+p[0].toFixed(4),+p[1].toFixed(4)]),word:a.word.trim(),tr:(a.tr||'').trim(),
+      clip:a.clip&&A[a.clip]?a.clip:null}))};
 }
 
 /* ---------- глаголы урока → Verb_de ---------- */
@@ -2615,6 +3125,7 @@ async function gapApi(lines,lang,to){
     if(r.ok){console.log('пропуски: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.items||[];}
     if(r.status===404&&!j.error)throw new Error('функция /api/task не найдена');
     if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
+    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
     throw new Error(j.error||('HTTP '+r.status));
   }
   throw new Error('неверный код доступа');
@@ -2655,7 +3166,7 @@ async function gapBuild(){
 /* ---------- export ---------- */
 function projectData(){
   return {key:S.key,title:S.title,subtitle:S.subtitle,main:S.main&&A[S.main]?S.main:null,speakers:S.speakers,
-    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),gaps:gapOut(),verb:viewS().verb?VERB_URL:null,lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
+    view:{tr:!!viewS().trOut,marker:viewS().markerOut!==false,layout:viewS().layout},gloss:glossOut(),gaps:gapOut(),pic:picOut(),verb:viewS().verb?VERB_URL:null,lines:S.lines.map(l=>({type:l.type,spk:l.spk,text:l.text,tr:l.tr||'',start:l.start,clip:l.clip&&A[l.clip]?l.clip:null,color:l.color||null,wt:l.wt||null}))};
 }
 async function buildHTML(embed){
   const au={};let kept=0;
@@ -2673,9 +3184,9 @@ async function buildHTML(embed){
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet" media="print" onload="this.media=\'all\'"><noscript><link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet"></noscript>\n'+
     '<style>'+$('rtcss').textContent+'</style>\n</head>\n<body>\n<div class="wrap">\n'+
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
-    '<div id="txt"></div>\n</div>\n'+
+    '<div id="pic"></div>\n<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-wd">слова</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(projectData())+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
@@ -2708,7 +3219,7 @@ async function previewNow(force){
 let expBusy=false;
 async function doExport(){
   if(expBusy){toast('Уже собираю…');return;}
-  if(!S.lines.length){toast('Нет текста для страницы.');return;}
+  if(!S.lines.length&&!picOut()){toast('Нет ни текста, ни картинки.');return;}
   expBusy=true;
   toast('Собираю страницу…');
   try{const html=await buildHTML(true);download(new Blob([html],{type:'text/html'}),exportName());toast('Страница скачана: '+exportName());}
@@ -2862,6 +3373,12 @@ async function openFile(){
         const dv=data.view||{};
         S.view={tr:true,marker:true,gloss:true,gaps:true,trOut:!!dv.tr,markerOut:dv.marker!==false,layout:dv.layout||'plain'};
         if(Array.isArray(data.gaps))S.lines.forEach((l,n)=>{const g=data.gaps[n];if(g&&g.a)l.gap={k:g.k,a:g.a,n:g.n||1,o:g.o||[],h:g.h||''};});
+        if(data.pic&&typeof data.pic.img==='string'&&A[data.pic.img]&&Array.isArray(data.pic.areas)){
+          S.pic={img:data.pic.img,w:+data.pic.w||0,h:+data.pic.h||0,
+            areas:data.pic.areas.filter(a=>a&&Array.isArray(a.poly)&&a.poly.length>2).map(a=>({
+              id:'p'+uid(),poly:a.poly.map(q=>[+q[0]||0,+q[1]||0]),word:String(a.word||''),tr:String(a.tr||''),
+              clip:a.clip&&A[a.clip]?a.clip:null,gen:null}))};
+        }
         if(Array.isArray(data.gloss)){            // словарь возвращаем в вид «слово + предложение»
           const g={};
           S.lines.forEach((l,n)=>{const m=data.gloss[n];if(!m)return;const s=l.text.trim();
@@ -2901,7 +3418,8 @@ const GO={
   async syncReset(){const k=await sheet('Стереть все метки времени?',[{k:'go',icon:'✕',label:'Стереть',danger:true},{k:null,icon:'↩',label:'Отмена'}]);if(k!=='go')return;
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
-  preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,
+  picAdd,picDetect,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>{if(ttsBusy){toast('Сначала останови текущую озвучку.');return;}ttsAll(true);},design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
@@ -2917,6 +3435,7 @@ $('nav').addEventListener('click',e=>{
   if(tab==='sync'){syncPos=firstUnmarked();renderSync();}
   if(tab==='done'){$('mainPlayer').pause();ed.pause();glossInfo();gapInfo();verbInfo();preview();}
   if(tab==='text')renderLines();
+  if(tab==='pic'){renderPic();if(!QUOTA)loadQuota();}
   window.scrollTo(0,0);
 });
 $('menuBtn').addEventListener('click',async()=>{
@@ -2940,7 +3459,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 function renderAll(){
   paintView();ltPaintAuto();ltTrPaint();trDir();$('trLang').value=S.trDir;
   $('title').value=S.title||'';$('subtitle').value=S.subtitle||'';$('fname').value=S.fname||'';
-  renderSpeakers();renderLines();renderAudio();
+  renderSpeakers();renderLines();renderAudio();renderPic();
   if(tab==='sync')renderSync();
   if(tab==='done')preview();
 }
