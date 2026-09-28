@@ -186,9 +186,13 @@ code{font-size:13px;background:var(--paper);padding:1px 4px;border-radius:4px;ov
 #voiceList .vc.on{background:color-mix(in srgb,var(--mark) 22%,var(--card));font-weight:700}
 #voiceList .ib{width:36px;height:36px;font-size:15px}
 .vnote{font-size:12.5px;color:var(--muted);margin:2px 0 8px 20px}
-#tab-audio.isv3 .only-classic{display:none!important}
+#tab-audio.isv3 .only-classic,#tab-audio.isv4 .only-classic{display:none!important}
 #tab-audio:not(.isv3) .only-v3{display:none!important}
-#tab-audio.isv2 .only-cl-lang{display:none!important}
+#tab-audio:not(.isv3):not(.isv4) .only-tags{display:none!important}
+#tab-audio.isv3 .only-stab{display:none!important}
+#tab-audio.isv4 .only-style{display:none!important}
+#tab-audio:not(.isv4) .only-v4{display:none!important}
+#tab-audio.isv2 .only-cl-lang,#tab-audio.isv4 .only-cl-lang{display:none!important}
 .tbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .tbar .sep{flex-basis:100%;height:0}
 .mini{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 10px;min-height:38px;font-size:14px;font-weight:500}
@@ -309,6 +313,8 @@ select.inp{appearance:auto}
       <div id="elVoices"></div>
       <div class="sub">Модель</div>
       <div class="mcards" id="elModels">
+        <button data-m="eleven_v4"><b>Eleven v4 — новая</b><small>сильнее всех держит голос на длинном тексте, теги настроения; без «артистичности» и «скорости»</small></button>
+        <button data-m="eleven_v4_turbo"><b>v4 Turbo — быстрая</b><small>то же, но отвечает мгновенно; качество чуть ниже</small></button>
         <button data-m="eleven_v3"><b>Eleven v3 — эмоции</b><small>настроение голоса, самая живая; дубли звучат по-разному</small></button>
         <button data-m="eleven_multilingual_v2"><b>Multilingual v2 — качество</b><small>ровная и предсказуемая, слышит соседние реплики</small></button>
         <button data-m="eleven_flash_v2_5"><b>Flash v2.5 — быстрее</b><small>вдвое дешевле за символ, звучит попроще</small></button>
@@ -316,6 +322,8 @@ select.inp{appearance:auto}
       <div class="only-v3">
         <div class="sub">Характер <small>v3 понимает только три положения</small></div>
         <div class="seg" id="elStab"><button data-v="0">Творчески</button><button data-v="0.5">Естественно</button><button data-v="1">Стабильно</button></div>
+      </div>
+      <div class="only-tags">
         <div class="sub">Настроение <small>можно выбрать несколько или ни одного</small></div>
         <div class="chips" id="elMood"></div>
         <div class="hint" id="elMoodNow"></div>
@@ -332,10 +340,11 @@ select.inp{appearance:auto}
         <button class="btn" data-preset="live">Живо</button>
         <button class="btn" data-preset="warm">Тепло</button>
       </div>
-      <label class="sl only-classic">Ровность <b id="vStb"></b> <small>ниже — живее, но больше разброс</small><input type="range" id="elStb" min="0" max="1" step="0.05"></label>
+      <label class="sl only-stab">Ровность <b id="vStb"></b> <small>ниже — живее, но больше разброс</small><input type="range" id="elStb" min="0" max="1" step="0.05"></label>
       <label class="sl">Похожесть на голос <b id="vSim"></b><input type="range" id="elSim" min="0" max="1" step="0.05"></label>
-      <label class="sl">Артистичность <b id="vSty"></b> <small>0–0.4 обычно достаточно</small><input type="range" id="elSty" min="0" max="1" step="0.05"></label>
-      <label class="sl">Скорость <b id="vSpd"></b><input type="range" id="elSpd" min="0.7" max="1.2" step="0.02"></label>
+      <label class="sl only-style">Артистичность <b id="vSty"></b> <small>0–0.4 обычно достаточно</small><input type="range" id="elSty" min="0" max="1" step="0.05"></label>
+      <label class="sl only-style">Скорость <b id="vSpd"></b><input type="range" id="elSpd" min="0.7" max="1.2" step="0.02"></label>
+      <p class="hint only-v4">У v4 всего два ползунка — ровность и похожесть. Артистичность задаётся тегами настроения, а скорость слушатель меняет прямо в готовой странице.</p>
       <label class="ck only-classic"><input type="checkbox" id="elCtx"><span>Слышит соседние реплики <small>интонация как в живом диалоге, знаки на них не тратятся</small></span></label>
       <label class="ck"><input type="checkbox" id="elDot"><span>Точка в конце фразы</span></label>
       <label class="ck"><input type="checkbox" id="elSeedOn"><span>Одно зерно на весь урок <small>иначе v3 читает каждый дубль по-своему</small></span></label>
@@ -1815,7 +1824,11 @@ async function autoMark(){
 }
 
 /* ---------- ElevenLabs (голоса как в Uhrzeit) ---------- */
-const MODELS=['eleven_v3','eleven_multilingual_v2','eleven_flash_v2_5'];
+const MODELS=['eleven_v4','eleven_v4_turbo','eleven_v3','eleven_multilingual_v2','eleven_flash_v2_5'];
+const MODEL_NAME={eleven_v4:'v4',eleven_v4_turbo:'v4 Turbo',eleven_v3:'v3',eleven_multilingual_v2:'Multi v2',eleven_flash_v2_5:'Flash'};
+const isV3=m=>m==='eleven_v3';
+const isV4=m=>String(m||'').indexOf('eleven_v4')===0;
+const hasTags=m=>isV3(m)||isV4(m);        // теги настроения понимают v3 и v4
 const TAGS=[
   {code:'[cheerful]',label:'😊 Весело'},{code:'[warmly]',label:'🤗 Тепло'},{code:'[friendly]',label:'🙂 Дружелюбно'},
   {code:'[calm]',label:'😌 Спокойно'},{code:'[excited]',label:'🤩 Восторженно'},{code:'[playfully]',label:'😜 Игриво'},
@@ -1944,8 +1957,9 @@ function renderEl(){
   if(used.has('-')||!S.speakers.length)rows.push(row('-','Без говорящего','var(--line)',e.def));
   $('elVoices').innerHTML=rows.join('');
   if(openRow!=null)showVoiceList(openRow);
-  const v3=e.model==='eleven_v3';
+  const v3=isV3(e.model);
   $('tab-audio').classList.toggle('isv3',v3);
+  $('tab-audio').classList.toggle('isv4',isV4(e.model));
   $('tab-audio').classList.toggle('isv2',e.model==='eleven_multilingual_v2');
   $('elModels').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===e.model));
   $('elStab').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+e.v3stab));
@@ -2011,21 +2025,21 @@ function neighbourMap(){
   return nb;
 }
 function buildReq(i,v,e,nb){
-  const l=S.lines[i],v3=e.model==='eleven_v3';
+  const l=S.lines[i],v3=isV3(e.model);
   let text=l.text.trim();
   if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
-  if(v3&&e.tags.trim())text=e.tags.trim()+' '+text;
+  if(hasTags(e.model)&&e.tags.trim())text=e.tags.trim()+' '+text;
   const pin=v.pin!=null?!!v.pin:v.key!=null;
   const r={a:'tts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
   if(e.seedOn)r.seed=e.seed;
-  if(!v3&&e.ctx){const x=nb&&nb[i];r.prev=x?x.p:neighbour(i,-1);r.next=x?x.n:neighbour(i,1);}
+  if(!v3&&!isV4(e.model)&&e.ctx){const x=nb&&nb[i];r.prev=x?x.p:neighbour(i,-1);r.next=x?x.n:neighbour(i,1);}
   return r;
 }
 function ttsSig(l,e,i,nb){
   if(i==null)i=S.lines.indexOf(l);
   const v=voiceFor(l);if(!v||i<0)return null;
   const r=buildReq(i,v,e||elS(),nb);delete r.a;delete r.key;delete r.prev;delete r.next;
-  r.ctx=!!(e||elS()).ctx&&r.model!=='eleven_v3';
+  r.ctx=!!(e||elS()).ctx&&!isV3(r.model)&&!isV4(r.model);
   return JSON.stringify(r);
 }
 function elChanged(){renderEl();renderLines();save();}
@@ -2077,15 +2091,17 @@ async function ttsLine(i){
   const r=await api(req);
   if(!req.pin&&Number.isInteger(r.key)&&r.key!==ACC){ACC=r.key;rememberAcc();toast('Символы кончились — перешёл на аккаунт '+(ACC+1));}
   l.clip=addBlob(b64Blob(r.audio));l.gen=ttsSig(l,e);
-  const pre=(e.model==='eleven_v3'&&e.tags.trim())?e.tags.trim().length+1:0;
+  const pre=(hasTags(e.model)&&e.tags.trim())?e.tags.trim().length+1:0;
   l.wt=(r.chars===req.text.length)?wordTimes(req.text,r.starts,r.ends,pre,l.text.trim().length,0):null;
 }
 /* пробы */
 const PROBES=[];
 function setLabel(s){
-  const v3=s.model==='eleven_v3';
+  const v3=isV3(s.model),v4=isV4(s.model);
   const st=v3?{0:'Творчески',0.5:'Естественно',1:'Стабильно'}[s.v3stab]:'ровность '+(+s.stab).toFixed(2);
-  return [{eleven_v3:'v3',eleven_multilingual_v2:'Multi v2',eleven_flash_v2_5:'Flash'}[s.model],st,v3&&s.tags?tagsText(s.tags):'',(+s.sim).toFixed(2)+'/'+(+s.style).toFixed(2)+'/'+(+s.speed).toFixed(2)+'×',!v3&&s.ctx?'контекст':'',s.seedOn?'зерно '+s.seed:''].filter(Boolean).join(' · ');
+  const sl=v4?'похожесть '+(+s.sim).toFixed(2):(+s.sim).toFixed(2)+'/'+(+s.style).toFixed(2)+'/'+(+s.speed).toFixed(2)+'×';
+  return [MODEL_NAME[s.model]||s.model,st,hasTags(s.model)&&s.tags?tagsText(s.tags):'',sl,
+    (!v3&&!v4&&s.ctx)?'контекст':'',s.seedOn?'зерно '+s.seed:''].filter(Boolean).join(' · ');
 }
 function renderProbes(){
   $('prList').innerHTML=PROBES.map((p,n)=>'<div class="vit"><button class="ib" data-prp="'+n+'" aria-label="Послушать">▶</button><div class="nm">'+(PROBES.length-n)+'. '+esc(p.voice)+'<small>'+esc(setLabel(p.set))+'</small><small>'+esc(p.text.slice(0,50))+'</small></div><button class="ib" data-prr="'+n+'" aria-label="Вернуть настройки">⤴</button><button class="btn" data-pru="'+n+'">В строку</button></div>').join('');
@@ -2337,8 +2353,8 @@ async function ttsWhole(){
   const vs=idx.map(i=>voiceFor(S.lines[i]));
   if(vs.some(v=>!v)){toast('Выбери голос во вкладке «Аудио».');return;}
   if(new Set(vs.map(v=>v.id)).size>1){toast('У говорящих разные голоса — одним файлом можно только одним голосом. Назначь всем один голос.');return;}
-  const v=vs[0],e=elS(),v3=e.model==='eleven_v3';
-  const pre=v3&&e.tags.trim()?e.tags.trim()+' ':'';
+  const v=vs[0],e=elS(),v3=isV3(e.model);
+  const pre=hasTags(e.model)&&e.tags.trim()?e.tags.trim()+' ':'';
   const texts=idx.map(i=>{let t=S.lines[i].text.trim();if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(t))t+='.';return t;});
   // куски до ~2400 знаков по границам строк
   const chunks=[];let cur=null;
@@ -2367,7 +2383,7 @@ async function ttsWhole(){
   }
   wholeBusy=true;const btn=$('ttsWholeBtn');btn.disabled=true;
   try{
-    const starts={},wts={};
+    const starts={},wts={};let noTs=false;
     let offset=W.parts.reduce((a,x)=>a+(x.dur||0),0),prevText=W.prev||'';
     W.parts.forEach(x=>(x.lines||[]).forEach(y=>{starts[y.i]=y.start;wts[y.i]=y.wt;}));
     for(let c=W.parts.length;c<chunks.length;c++){
@@ -2377,20 +2393,25 @@ async function ttsWhole(){
       const pin=v.pin!=null?!!v.pin:v.key!=null;
       const req={a:'ttsts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};
       if(e.seedOn)req.seed=e.seed;
-      if(!v3&&prevText)req.prev=prevText.slice(-400);
+      if(!v3&&!isV4(e.model)&&prevText)req.prev=prevText.slice(-400);
       const j=await api(req);
       if(!pin&&Number.isInteger(j.key)&&j.key!==ACC){ACC=j.key;rememberAcc();}
       const bin=atob(j.audio||'');const u8=new Uint8Array(bin.length);for(let q=0;q<bin.length;q++)u8[q]=bin.charCodeAt(q);
       const blob=new Blob([u8],{type:'audio/mpeg'});
+      const dur=await audioDuration(blob);
       const st=j.starts||[],en=j.ends||[],exact=j.chars===text.length,scale=exact?1:(j.chars?j.chars/text.length:1);
+      if(!st.length&&!noTs){noTs=true;console.warn('модель не вернула тайминги — метки расставлю на глаз');}
       ch.items.forEach((it,n)=>{
+        if(!st.length){                                   // модель без посимвольных таймингов: делим по длине текста
+          starts[it.i]=Math.round((offset+dur*(pos[n]/Math.max(1,text.length)))*100)/100;
+          wts[it.i]=null;return;
+        }
         const ix=Math.min(st.length-1,Math.round(pos[n]*scale));const t=st[ix];
         starts[it.i]=isFinite(t)?Math.max(0,offset+t-0.05):null;
         wts[it.i]=exact&&starts[it.i]!=null
           ? wordTimes(text,st,en,pos[n],it.t.length,Math.round(starts[it.i]*100)/100-offset)
           : null;
       });
-      const dur=await audioDuration(blob);
       offset+=dur;prevText=ch.items.map(x=>x.t).join(' ');
       // кусок сразу в память браузера: если вкладку убьют, озвучивать его заново не придётся
       W.parts.push({id:addBlob(blob),dur,lines:ch.items.map(it=>({i:it.i,start:starts[it.i],wt:wts[it.i]}))});
@@ -2403,7 +2424,8 @@ async function ttsWhole(){
       if(l.clip&&l.gen){l.clip=null;l.gen=null;}});
     delete S.whole;
     syncPos=firstUnmarked();renderLines();renderAudio();save();gcLater();if(QUOTA)loadQuota();
-    toast('Готово: одна дорожка '+fmtS(offset)+', строки размечены');
+    toast(noTs?'Готово: дорожка '+fmtS(offset)+'. Модель не дала точных таймингов — метки примерные, проверь во вкладке «Синхро».'
+             :'Готово: одна дорожка '+fmtS(offset)+', строки размечены');
   }catch(err){
     if(W.parts.length){S.whole=W;save();toast('Оборвалось на части '+(W.parts.length+1)+' из '+chunks.length+': '+err.message+'. Нажми ещё раз — продолжу с неё.');}
     else toast('Не получилось: '+err.message);
@@ -2980,10 +3002,10 @@ async function picVoiceOne(i){
 async function picTtsOne(a){
   const e=elS(),v=e.def||null;
   if(!v)throw new Error('выбери голос по умолчанию во вкладке «Аудио»');
-  const v3=e.model==='eleven_v3';
+  const v3=isV3(e.model);
   let text=a.word.trim();
   if(e.dot&&!/[.!?…:;]["»“”')]*$/.test(text))text+='.';
-  if(v3&&e.tags.trim())text=e.tags.trim()+' '+text;
+  if(hasTags(e.model)&&e.tags.trim())text=e.tags.trim()+' '+text;
   const pin=v.pin!=null?!!v.pin:v.key!=null;
   const req={a:'tts',text,voice:v.id,key:pin?v.key:ACC,pin,model:e.model,lang:e.lang,
     stability:v3?e.v3stab:e.stab,similarity:e.sim,style:e.style,speed:e.speed};

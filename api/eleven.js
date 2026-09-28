@@ -49,8 +49,10 @@ function send(res, status, obj) { res.status(status).json(obj); }
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return send(res, 405, { error: 'Только POST', code: 'method' });
-  const pass = process.env.OZV_PASSWORD;
-  if (pass && req.headers['x-ozv-pass'] !== pass) return send(res, 401, { error: 'Нужен код доступа', code: 'need_pass' });
+  // код доступа обязателен: без него функция — открытый прокси к платным ключам
+  const pass = String(process.env.OZV_PASSWORD || '').trim();
+  if (!pass) return send(res, 503, { error: 'В Vercel не задан OZV_PASSWORD — функция выключена', code: 'no_pass' });
+  if (String(req.headers['x-ozv-pass'] || '').trim() !== pass) return send(res, 401, { error: 'Нужен код доступа', code: 'need_pass' });
   const K = keys();
   if (!K.length) return send(res, 500, { error: 'В Vercel не задан ELEVENLABS_API_KEY (или ELEVENLABS_API_KEYS)', code: 'no_keys' });
   let b = req.body;
@@ -100,20 +102,23 @@ module.exports = async function handler(req, res) {
         const text = raw;
         if (!text.trim()) return send(res, 400, { error: 'Пустой текст', code: 'empty' });
         if (!/^[A-Za-z0-9]{15,40}$/.test(String(b.voice || ''))) return send(res, 400, { error: 'Неверный голос', code: 'voice' });
-        const MODELS = ['eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5'];
+        const MODELS = ['eleven_v4', 'eleven_v4_turbo', 'eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5'];
         const model = MODELS.includes(b.model) ? b.model : 'eleven_multilingual_v2';
         const v3 = model === 'eleven_v3';
+        const v4 = model.indexOf('eleven_v4') === 0;
         const num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
         let stability = num(b.stability, 0, 1, 0.5);
         if (v3) stability = stability < 0.25 ? 0 : stability > 0.75 ? 1 : 0.5;   // v3: только 0 / 0.5 / 1
-        const vs = { stability, similarity_boost: num(b.similarity, 0, 1, 0.75), style: num(b.style, 0, 1, 0), use_speaker_boost: true };
+        // v4 понимает лишь стабильность и похожесть: стиль, скорость и speaker boost ему не шлём
+        const vs = v4 ? { stability, similarity_boost: num(b.similarity, 0, 1, 0.75) }
+                      : { stability, similarity_boost: num(b.similarity, 0, 1, 0.75), style: num(b.style, 0, 1, 0), use_speaker_boost: true };
         const speed = num(b.speed, 0.7, 1.2, 1);
-        if (speed !== 1) vs.speed = speed;
+        if (speed !== 1 && !v4) vs.speed = speed;
         const body = { text, model_id: model, voice_settings: vs };
         if (b.lang && (v3 || model === 'eleven_flash_v2_5')) body.language_code = String(b.lang).slice(0, 5);
         const seed = parseInt(b.seed, 10);
         if (Number.isFinite(seed) && seed >= 0) body.seed = Math.min(4294967295, seed);
-        if (!v3) {   // невидимый контекст интонации — у v3 не поддерживается
+        if (!v3 && !v4) {   // невидимый контекст интонации — у v3 и v4 не поддерживается
           if (b.prev) body.previous_text = String(b.prev).slice(0, 400);
           if (b.next) body.next_text = String(b.next).slice(0, 400);
         }
