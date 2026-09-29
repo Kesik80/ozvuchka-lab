@@ -465,6 +465,15 @@ select.inp{appearance:auto}
       <div class="hint" id="sizeInfo"></div>
     </div>
     <div class="box">
+      <h2>Проект</h2>
+      <div class="row">
+        <button class="btn" data-go="openFile">📂 Открыть</button>
+        <button class="btn" data-go="saveProject">💾 Сохранить</button>
+        <button class="btn" data-go="newProject">＋ Новый (очистить)</button>
+      </div>
+      <div class="hint">Проект — файл со всем: текстом, озвучкой, картинкой и настройками. Открыть можно и готовую страницу, и .txt / .docx. Те же действия — в меню ⋮ вверху справа.</div>
+    </div>
+    <div class="box">
       <h2>Вид готовой страницы</h2>
       <div class="row" id="layPick">
         <button class="tgl" data-lay="plain">Лист текста</button>
@@ -3450,8 +3459,8 @@ async function itemsToLines(items){
   return lines;
 }
 async function confirmReplace(){
-  if(!S.lines.length&&!S.main)return true;
-  const k=await sheet('Открыть вместо текущего? Текущий проект пропадёт, если не сохранён файлом.',[{k:'save',icon:'⬇',label:'Сначала сохранить текущий'},{k:'go',icon:'⟲',label:'Открыть без сохранения',danger:true},{k:null,icon:'✕',label:'Отмена'}]);
+  if(!S.lines.length&&!S.main&&!(S.pic&&S.pic.img))return true;
+  const k=await sheet('Заменить текущий проект? Он пропадёт, если не сохранён файлом.',[{k:'save',icon:'⬇',label:'Сначала сохранить текущий'},{k:'go',icon:'⟲',label:'Заменить без сохранения',danger:true},{k:null,icon:'✕',label:'Отмена'}]);
   if(k==='save'){await saveProject();return true;}
   return k==='go';
 }
@@ -3563,7 +3572,7 @@ const GO={
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
   preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,
-  accFoldTgl,picAdd,picDetect,picVoiceGo,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  openFile,async newProject(){if(await confirmReplace()){resetState();renderAll();saveNow();}},accFoldTgl,picAdd,picDetect,picVoiceGo,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>{if(ttsBusy){toast('Сначала останови текущую озвучку.');return;}ttsAll(true);},design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
