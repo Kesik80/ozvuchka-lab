@@ -3088,10 +3088,16 @@ async function picTtsOne(a){
 }
 async function picVoice(){
   if(picBusy||ttsBusy||oneBusy||wholeBusy){toast('Дождись текущей озвучки.');return;}
-  const need=picAreas().filter(a=>a.word.trim()&&!(a.clip&&A[a.clip]&&a.gen===a.word.trim()+'|'+((elS().def||{}).id)+'|'+elS().model+'|'+elS().speed));
-  if(!need.length){toast('Всё уже озвучено.');return;}
-  const k=await sheet('Озвучить областей: '+need.length+'?',[{k:'go',icon:'🗣',label:'Озвучить'},{k:null,icon:'✕',label:'Отмена'}]);
-  if(k!=='go')return;
+  const all=picAreas().filter(a=>a.word.trim());
+  if(!all.length){toast('Нет слов для озвучки.');return;}
+  const fresh=all.filter(a=>!(a.clip&&A[a.clip]&&a.gen===a.word.trim()+'|'+((elS().def||{}).id)+'|'+elS().model+'|'+elS().speed));
+  const opts=[];
+  if(fresh.length&&fresh.length<all.length)opts.push({k:'new',icon:'🗣',label:'Только неозвученные ('+fresh.length+')'});
+  opts.push({k:'all',icon:'🔁',label:(fresh.length?'Все':'Озвучить заново все')+' ('+all.length+')'});
+  opts.push({k:null,icon:'✕',label:'Отмена'});
+  const k=await sheet(fresh.length===all.length?'Озвучить областей: '+all.length+'?':'Озвучить картинку',opts);
+  if(!k)return;
+  const need=k==='new'?fresh:all;
   picBusy=true;const btn=$('picVoiceBtn');btn.disabled=true;
   let done=0;
   try{
