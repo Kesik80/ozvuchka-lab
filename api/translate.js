@@ -62,8 +62,10 @@ async function listModels(key) {
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Только POST' });
-  const pass = process.env.OZV_PASSWORD;
-  if (pass && req.headers['x-ozv-pass'] !== pass) return res.status(401).json({ error: 'Нужен код доступа', code: 'need_pass' });
+  // код доступа обязателен: без него функция — открытый прокси к платным ключам
+  const pass = String(process.env.OZV_PASSWORD || '').trim();
+  if (!pass) return res.status(503).json({ error: 'В Vercel не задан OZV_PASSWORD — функция выключена', code: 'no_pass' });
+  if (String(req.headers['x-ozv-pass'] || '').trim() !== pass) return res.status(401).json({ error: 'Нужен код доступа', code: 'need_pass' });
   const K = keys();
   if (!K.length) return res.status(500).json({ error: 'В Vercel не задан GEMINI_API_KEY', code: 'no_keys' });
 
@@ -79,6 +81,7 @@ module.exports = async function handler(req, res) {
   const items = Array.isArray(b.items) ? b.items.slice(0, 120)
     .map(x => ({ word: String((x && x.word) || '').slice(0, 40), sentence: String((x && x.sentence) || '').slice(0, 400) }))
     .filter(x => x.word) : [];
+  const words = b.words === true;
   const glossMode = b.mode === 'gloss' && items.length;
 
   const prompt = glossMode ?
@@ -96,11 +99,12 @@ module.exports = async function handler(req, res) {
     'Translate EACH line of the JSON array below from ' + LANGS[from] + ' into natural, simple ' + LANGS[to] + '.\n' +
     'Rules: keep the same number of items and the same order; one translation per item; ' +
     'do not merge or split lines; keep names as they are; leave audio tags like [laughs] out of the translation; ' +
+    (words ? 'The items are single dictionary words (verbs in the infinitive, nouns with article). Give the standard dictionary translation: for verbs the infinitive in ' + LANGS[to] + ', for nouns the nominative singular without article. Use real, common ' + LANGS[to] + ' vocabulary only — never Belarusian, Polish or invented forms' + (to === 'uk' ? ' (e.g. gehen = ходити/йти, sitzen = сидіти)' : to === 'ru' ? ' (e.g. gehen = ходить/идти, sitzen = сидеть)' : '') + '.\n' : '') +
     'if an item is not in ' + LANGS[from] + ', still render it in ' + LANGS[to] + '. Return only a JSON array of strings.\n' +
     (context.length ? 'Earlier lines of the same text, for context only (do not translate): ' + JSON.stringify(context) + '\n' : '') +
     'Lines: ' + JSON.stringify(lines);
 
-  const first = [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+  const first = (words ? ['gemini-3.5-flash', process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-flash-latest'] : [process.env.MODEL_TEXT || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest'])
     .filter((m, i, a2) => m && a2.indexOf(m) === i);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const tried = [];

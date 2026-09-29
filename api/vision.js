@@ -98,7 +98,7 @@ module.exports = async function handler(req, res) {
       'When there are no captions, name each object yourself.\n' +
       'For EACH entry return:\n' +
       '- "word": the ' + lang + ' word — a noun WITH its article ("die Katze"), a verb in the infinitive ("gehen").\n' +
-      '- "tr": a one- or two-word ' + to + ' translation.\n' +
+      '- "tr": a one- or two-word ' + to + ' translation (real, common ' + to + ' vocabulary; a verb as infinitive; never Belarusian or invented forms).\n' +
       '- "box_2d": [ymin, xmin, ymax, xmax] around the drawing TOGETHER with its printed word, each 0-1000 relative to the image.\n' +
       'Go left to right, top to bottom. No duplicates. Skip the page background, borders, the page title and page numbers. Answer with JSON only.';
 

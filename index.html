@@ -2276,10 +2276,10 @@ $('layPick').addEventListener('click',e=>{const b=e.target.closest('[data-lay]')
 $('trLang').addEventListener('change',e=>{S.trDir=e.target.value;renderLines();glossInfo();save();});
 
 /* ---------- перевод (Gemini) ---------- */
-async function trApi(lines,context,from,to){
+async function trApi(lines,context,from,to,words){
   for(let t=0;t<2;t++){
     let r;
-    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,from,to})});}
+    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,from,to,words:!!words})});}
     catch(e){netFail();throw new Error('нет связи с сервером');}
     let j={};try{j=await r.json();}catch(e){}
     if(r.ok){console.log('перевод: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.tr;}
@@ -3107,7 +3107,7 @@ async function picTr(){
   picBusy=true;const btn=$('picTrBtn');btn.disabled=true;btn.textContent='Перевожу…';
   try{
     const [from,to]=trDir(),ui=from==='de'?to:from;
-    const out=await trApi(need.map(a=>a.word.trim()),[],'de',ui);
+    const out=await trApi(need.map(a=>a.word.trim()),[],'de',ui,true);
     need.forEach((a,n)=>{if(out[n])a.tr=String(out[n]).trim();});
     renderPic();save();toast('Переведено: '+need.length);
   }catch(e){toast('Перевод не удался: '+e.message);}
