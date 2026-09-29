@@ -3028,7 +3028,7 @@ function renderPic(){
     '<span class="num">'+(i+1)+'</span>'+
     '<span class="fields"><input class="w" data-f="word" value="'+esc(a.word)+'" placeholder="Слово по-немецки" aria-label="Слово">'+
     '<input class="t" data-f="tr" value="'+esc(a.tr)+'" placeholder="перевод" aria-label="Перевод"></span>'+
-    (a.clip&&A[a.clip]?'<span class="ok">🔊</span>':'')+
+    (a.clip&&A[a.clip]?'<button class="ib" data-pa="play" title="Послушать">🔊</button>':'')+
     '<button class="ib" data-pa="ai" title="Пусть Gemini назовёт">✨</button>'+
     '<button class="ib" data-pa="tts" title="Озвучить">🗣</button>'+
     '<button class="ib" data-pa="del" title="Убрать">🗑</button></div>').join('');
@@ -3062,6 +3062,7 @@ $('picList').addEventListener('click',async e=>{
   const i=+row.dataset.i,a=picAreas()[i];if(!a)return;
   if(!b){picSel=i;renderPic();return;}
   if(b.dataset.pa==='del'){S.pic.areas.splice(i,1);picSel=-1;renderPic();save();gcLater();return;}
+  if(b.dataset.pa==='play'){const a=picAreas()[i];if(a&&a.clip&&A[a.clip])edPlayBlob(a.clip);else toast('Озвучки ещё нет.');return;}
   if(b.dataset.pa==='ai'){picSel=i;renderPic();await picName(i);return;}
   if(b.dataset.pa==='tts'){picSel=i;renderPic();await picVoiceOne(i);}
 });
