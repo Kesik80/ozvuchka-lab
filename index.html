@@ -268,6 +268,7 @@ select.inp{appearance:auto}
       </div>
       <div class="row" style="margin-top:8px">
         <button class="tgl" id="picLasso" data-go="picLassoTgl">✍ Обвести</button>
+        <button class="btn mini" data-go="picVoiceGo" id="picVoiceSel">Голос ▾</button>
         <button class="btn mini" data-go="picVoice" id="picVoiceBtn">Озвучить всё</button>
         <button class="btn mini" data-go="picTr" id="picTrBtn">Перевести</button>
         <span class="sep"></span>
@@ -1961,7 +1962,7 @@ function renderEl(){
   const row=(id,name,color,v)=>'<div class="vrow" style="--c:'+esc(color)+'"><span class="dot"></span><b>'+esc(name)+'</b><button class="btn vbtn'+(v?'':' none')+'" data-vs="'+id+'">'+(v?'<b>'+esc(v.name)+'</b>':'выбрать голос')+' ▾</button></div>'+
     (v&&v.about?'<div class="vnote">'+esc(v.about)+'</div>':'')+(openRow===id?'<div id="voiceList"></div>':'');
   const rows=S.speakers.map(s=>row(s.id,s.name,s.color,s.voice));
-  if(used.has('-')||!S.speakers.length)rows.push(row('-','Без говорящего','var(--line)',e.def));
+  if(used.has('-')||!S.speakers.length||S.pic)rows.push(row('-',S.pic&&!used.has('-')?'Голос картинки':'Без говорящего','var(--line)',e.def));
   $('elVoices').innerHTML=rows.join('');
   if(openRow!=null)showVoiceList(openRow);
   const v3=isV3(e.model);
@@ -3017,6 +3018,7 @@ function renderPic(){
   const ar=picAreas(),done=ar.filter(a=>a.word.trim()).length,voiced=ar.filter(a=>a.clip&&A[a.clip]).length;
   const only=!!viewS().picOnly,lines=S.lines.filter(l=>l.type!=='head'&&l.text.trim()).length;
   $('picOnly1').classList.toggle('on',only);$('picOnly0').classList.toggle('on',!only);
+  {const v=elS().def;$('picVoiceSel').textContent=(v?v.name:'Выбрать голос')+' ▾';}
   $('picInfo').textContent=(!ar.length?'Нажми «Найти предметы» — или «Обвести» и обведи пальцем.'
     :'Областей: '+ar.length+(done<ar.length?', без слова: '+(ar.length-done):'')+', озвучено: '+voiced+' из '+done+'.')
     +(lines?(only?' Текст урока ('+lines+' реплик) в страницу не попадёт.':' Вместе с картинкой пойдёт и текст урока ('+lines+' реплик).'):'');
@@ -3086,6 +3088,8 @@ async function picTtsOne(a){
   if(!pin&&Number.isInteger(r.key)&&r.key!==ACC){ACC=r.key;rememberAcc();}
   a.clip=addBlob(r.blob);a.gen=a.word.trim()+'|'+v.id+'|'+e.model+'|'+e.speed;
 }
+function picVoiceGo(){openRow='-';renderEl();document.querySelector('#nav [data-tab="audio"]').click();
+  setTimeout(()=>{const r=$('elVoices');if(r)r.scrollIntoView({block:'start'});},50);}
 async function picVoice(){
   if(picBusy||ttsBusy||oneBusy||wholeBusy){toast('Дождись текущей озвучки.');return;}
   const all=picAreas().filter(a=>a.word.trim());
@@ -3532,7 +3536,7 @@ const GO={
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
   preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,
-  picAdd,picDetect,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  picAdd,picDetect,picVoiceGo,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>{if(ttsBusy){toast('Сначала останови текущую озвучку.');return;}ttsAll(true);},design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
