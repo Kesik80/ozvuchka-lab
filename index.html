@@ -221,6 +221,11 @@ body.notr .card textarea.tr{display:none}
 .vbtn{max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:40px;padding:8px 12px}
 .vbtn.none{color:var(--danger)}
 details.more{margin-top:8px}
+.foldbtn{display:block;width:100%;text-align:left;background:none;border:0;color:var(--muted);padding:8px 0 2px;font:inherit;cursor:pointer}
+#accounts.folded{display:none}
+#elModels.folded button:not(.on){display:none}
+#elModels.folded button.on{position:relative;padding-right:34px}
+#elModels.folded button.on::after{content:'сменить ▾';position:absolute;right:12px;top:10px;font-size:12px;color:var(--muted)}
 details.more summary{cursor:pointer;padding:8px 0;color:var(--muted)}
 select.inp{appearance:auto}
 .vit{display:flex;gap:8px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)}
@@ -308,6 +313,7 @@ select.inp{appearance:auto}
       </div>
       <div class="qbar"><i id="qFill"></i><s id="qNeed"></s></div>
       <div class="qnums" id="qNums">нажми ↻, чтобы узнать остаток</div>
+      <button class="foldbtn" id="accFold" data-go="accFoldTgl" hidden></button>
       <div id="accounts"></div>
     </div>
     <div class="box" id="elBox">
@@ -1921,12 +1927,31 @@ function paintQuota(){
     return '<button class="acc'+(bad?' dead':'')+(a.i===ACC?' on':'')+'" data-acc="'+a.i+'"><span class="nm">'+(a.i===ACC?'<b>▶ '+(a.i+1)+'</b>':(a.i+1))+' · '+esc(a.tier||'—')+'</span><span class="b"><i class="'+cls+'" style="width:'+(bad?0:a.percent)+'%"></i></span><span class="n">'+(bad?'лимит ?':nf(a.left)+' симв.')+'</span></button>';
   }).join('')+accs.filter(a=>!a.ok).map(a=>'<div class="hint warn">Аккаунт '+(a.i+1)+': '+esc(a.error)+(a.noPermission?'<br>Озвучка, скорее всего, работает — просто у ключа нет права User → Access, поэтому остаток не виден.':'')+'</div>').join('')+
     '<div class="hint">Нажми на аккаунт, чтобы озвучивать с него'+(manualAcc?' · выбран вручную':' · выбирается сам')+'</div>';
+  foldPaint();
   const next=accs.filter(a=>a.ok&&a.reset).sort((a,b)=>a.reset-b.reset)[0];
   let when='';
   if(next){const dt=new Date(next.reset*1000),days=Math.max(0,Math.ceil((dt-Date.now())/864e5));when=' · обновление '+dt.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})+' (через '+days+' дн.)';}
   $('qNums').innerHTML='осталось <b>'+nf(q.left)+'</b> из '+nf(q.limit)+(many?' на всех аккаунтах':' · '+esc((accs[0]||{}).tier||'—'))+when+'<br>'+
     (need>0?'на озвучку урока нужно <b>'+nf(need)+'</b> символов — '+(need<=q.left?'хватает':'<b class="warn">не хватает '+nf(need-q.left)+'</b>'):'всё уже озвучено');
 }
+
+/* --- сворачивание блоков «Лимит» и «Модель» --- */
+const FOLD={acc:true,mod:true};
+try{['acc','mod'].forEach(k=>{const v=localStorage.getItem('ozv:fold:'+k);if(v!=null)FOLD[k]=v==='1';});}catch(e){}
+function foldSave(k){try{localStorage.setItem('ozv:fold:'+k,FOLD[k]?'1':'0');}catch(e){}}
+function foldPaint(){
+  const accs=(QUOTA&&QUOTA.keys)||[],many=accs.length>1;
+  const b=$('accFold');b.hidden=!many;
+  $('accounts').classList.toggle('folded',many&&FOLD.acc);
+  if(many)b.textContent=(FOLD.acc?'Показать аккаунты':'Скрыть аккаунты')+' ('+accs.length+(accs.some(a=>!a.ok)?', есть проблемные':'')+') '+(FOLD.acc?'▾':'▴');
+  $('elModels').classList.toggle('folded',FOLD.mod);
+}
+function accFoldTgl(){FOLD.acc=!FOLD.acc;foldSave('acc');foldPaint();}
+$('elModels').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(FOLD.mod){e.stopPropagation();FOLD.mod=false;foldSave('mod');foldPaint();return;}
+  setTimeout(()=>{FOLD.mod=true;foldSave('mod');foldPaint();},0);
+},true);
 $('accounts').addEventListener('click',e=>{
   const b=e.target.closest('[data-acc]');if(!b)return;
   ACC=+b.dataset.acc;manualAcc=true;rememberAcc();paintQuota();
@@ -1970,6 +1995,7 @@ function renderEl(){
   $('tab-audio').classList.toggle('isv4',isV4(e.model));
   $('tab-audio').classList.toggle('isv2',e.model==='eleven_multilingual_v2');
   $('elModels').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===e.model));
+  foldPaint();
   $('elStab').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+e.v3stab));
   paintChips();
   $('elStb').value=e.stab;$('vStb').textContent=(+e.stab).toFixed(2);
@@ -3537,7 +3563,7 @@ const GO={
     const bak=S.lines.map(l=>l.start);S.lines.forEach(l=>l.start=null);syncPos=0;renderSync();renderLines();save();
     toast('Метки стёрты','Вернуть',()=>{S.lines.forEach((l,i)=>l.start=bak[i]);syncPos=firstUnmarked();renderSync();renderLines();save();});},
   preview,previewForce(){preview(true);},export:doExport,ltTrTgl,gapBuild,verbOpen,verbCsv,
-  picAdd,picDetect,picVoiceGo,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
+  accFoldTgl,picAdd,picDetect,picVoiceGo,picLassoTgl,picVoice,picTr,picDrop,saveProject,trAll,ttsWhole,ltAll,ltAutoTgl,stt,glossBuild,
   ttsAll:()=>ttsAll(false),ttsRedo:()=>{if(ttsBusy){toast('Сначала останови текущую озвучку.');return;}ttsAll(true);},design,probe,loadQuota,reloadVoices(){loadVoices(true).then(()=>{if(openRow!=null)showVoiceList(openRow);toast('Голосов: '+VOICES.length);}).catch(e=>toast('Ошибка: '+e.message));},
   seedRoll(){elS().seed=newSeed();elS().seedOn=true;elChanged();}
 };
