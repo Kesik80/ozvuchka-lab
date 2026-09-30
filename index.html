@@ -59,7 +59,7 @@ button{cursor:pointer}
 
 /* header */
 .top{position:sticky;top:0;z-index:20;background:var(--paper);padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 8px;border-bottom:1px solid var(--line)}
-.toprow{display:flex;align-items:center;gap:10px}
+.toprow{display:flex;align-items:center;gap:6px}
 .offbar{margin:8px 0 2px;display:flex;align-items:center;gap:8px;font-size:12.5px;line-height:1.35;padding:7px 10px;border-radius:9px;
   color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 32%,transparent)}
 .offbar .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);flex:none}
@@ -69,7 +69,8 @@ button{cursor:pointer}
 .brand span{background:linear-gradient(transparent 55%,var(--mark) 55%)}
 .top input{flex:1;min-width:0;border:0;background:transparent;font-weight:500;padding:6px 4px;border-radius:8px}
 .top input:focus{background:var(--card)}
-.saved{font-size:12px;color:var(--muted);white-space:nowrap}
+.saved{font-size:15px;color:var(--muted);white-space:nowrap;min-width:14px;text-align:center}
+.saved.bad{color:var(--danger)}
 .ib{border:0;background:transparent;width:40px;height:40px;border-radius:10px;font-size:20px;display:inline-grid;place-items:center;flex:none}
 .ib:active{background:var(--line)}
 
@@ -250,7 +251,7 @@ select.inp{appearance:auto}
     <div class="brand"><span>ОЗВУЧКА</span></div>
     <input id="title" placeholder="Название урока" aria-label="Название урока">
     <span class="saved" id="saved"></span>
-    <button class="ib" id="themeBtn" aria-label="Тема оформления">◐</button>
+    <button class="ib" id="themeBtn" aria-label="Тема оформления">🌓</button>
     <button class="ib" id="menuBtn" aria-label="Меню">⋮</button>
   </div>
   <p class="offbar" id="offbar" role="status" hidden><span class="dot"></span><span id="offtxt"></span></p>
@@ -1414,11 +1415,13 @@ function netFail(quiet){
 addEventListener('online',netUpdate);addEventListener('offline',netUpdate);
 
 let saveT=0;
-function save(){clearTimeout(saveT);$('saved').textContent='…';saveT=setTimeout(saveNow,600);}
+const SAVED={ok:['✓','Сохранено'],wait:['…','Сохраняю…'],bad:['⚠','Не сохранено'],none:['','']};
+function setSaved(k){const e=$('saved'),v=SAVED[k];e.textContent=v[0];e.title=v[1];e.setAttribute('aria-label',v[1]);e.classList.toggle('bad',k==='bad');}
+function save(){clearTimeout(saveT);setSaved('wait');saveT=setTimeout(saveNow,600);}
 function saveNow(){
   clearTimeout(saveT);gcLater();
   const remotes={};for(const id in A)if(A[id].remote)remotes[id]=A[id].remote;
-  return idbPut('project',JSON.stringify({S,remotes})).then(()=>{$('saved').textContent='сохранено';}).catch(e=>{console.error(e);$('saved').textContent='не сохранено';});
+  return idbPut('project',JSON.stringify({S,remotes})).then(()=>{setSaved('ok');}).catch(e=>{console.error(e);setSaved('bad');});
 }
 function addBlob(blob){const id='a'+uid();A[id]={blob,url:URL.createObjectURL(blob)};idbPut('a:'+id,blob).catch(e=>{console.error(e);toast('Аудио не записалось в память браузера. Сохрани проект файлом.');});return id;}
 function addRemote(url){const id='r'+uid();A[id]={remote:url};return id;}
@@ -3597,7 +3600,7 @@ $('nav').addEventListener('click',e=>{
 });
 
 /* --- тема: авто / светлая / тёмная --- */
-const THEMES=['auto','light','dark'],THEME_ICON={auto:'◐',light:'☀',dark:'☾'},THEME_NAME={auto:'Авто (как в системе)',light:'Светлая',dark:'Тёмная'};
+const THEMES=['auto','light','dark'],THEME_ICON={auto:'🌓',light:'☀️',dark:'🌙'},THEME_NAME={auto:'Авто (как в системе)',light:'Светлая',dark:'Тёмная'};
 let themeMode='auto';
 try{const t=localStorage.getItem('ozv:theme');if(t==='light'||t==='dark')themeMode=t;}catch(e){}
 function themeApply(){
@@ -3668,7 +3671,7 @@ function renderAll(){
   // просим браузер не вычищать аудио при нехватке места
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   ltSchedule(5000);
-  $('saved').textContent=S.lines.length?'сохранено':'';
+  setSaved(S.lines.length?'ok':'none');
 })();
 })();
 </script>
