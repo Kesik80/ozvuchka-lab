@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <script>try{var t=localStorage.getItem("ozv:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <meta name="theme-color" content="#FBFCFE" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#10151F" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#161A22" media="(prefers-color-scheme: dark)">
 <title>ОЗВУЧКА</title>
 <link rel="manifest" href="/icons/manifest.json">
 <link rel="icon" href="/icons/favicon.ico" sizes="32x32">
@@ -26,9 +26,9 @@
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none!important}
 @media (prefers-color-scheme:dark){
-  :root:not([data-theme=light]){--ink:#E6EBF5;--paper:#10151F;--card:#182030;--line:#2A3448;--muted:#8E9AB2;--accent:#7C9BFF}
+  :root:not([data-theme=light]){--ink:#C9D0DE;--paper:#161A22;--card:#1E2330;--line:#2E3547;--muted:#8992A6;--accent:#8DA6EE;--mark:#C7A94F}
 }
-:root[data-theme=dark]{--ink:#E6EBF5;--paper:#10151F;--card:#182030;--line:#2A3448;--muted:#8E9AB2;--accent:#7C9BFF;color-scheme:dark}
+:root[data-theme=dark]{--ink:#C9D0DE;--paper:#161A22;--card:#1E2330;--line:#2E3547;--muted:#8992A6;--accent:#8DA6EE;--mark:#C7A94F;color-scheme:dark}
 :root[data-theme=light]{color-scheme:light}
 html,body{margin:0;height:100%}
 body{background:var(--paper);color:var(--ink);font:16px/1.45 var(--ui);-webkit-tap-highlight-color:transparent}
@@ -155,7 +155,7 @@ audio{width:100%;margin-top:8px}
 .mcards button{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:8px}
 .mcards button b{display:block;font-weight:700}
 .mcards button small{color:var(--muted);font-size:13px}
-.mcards button.on{border:2px solid var(--ink);padding:9px 13px;background:color-mix(in srgb,var(--mark) 22%,var(--card))}
+.mcards button.on{border:2px solid color-mix(in srgb,var(--ink) 55%,transparent);padding:9px 13px;background:color-mix(in srgb,var(--mark) 22%,var(--card))}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--ink);border-radius:10px;overflow:hidden}
 .seg button{border:0;background:transparent;padding:10px 4px;min-height:44px;font-weight:500}
 .seg button.on{background:var(--ink);color:var(--paper)}
@@ -3609,7 +3609,7 @@ function themeApply(){
   const dark=themeMode==='dark'||(themeMode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
   document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{
     if(m.dataset.orig==null)m.dataset.orig=m.getAttribute('content');
-    m.setAttribute('content',themeMode==='auto'?m.dataset.orig:(dark?'#10151F':'#FBFCFE'));
+    m.setAttribute('content',themeMode==='auto'?m.dataset.orig:(dark?'#161A22':'#FBFCFE'));
   });
   const b=$('themeBtn');b.textContent=THEME_ICON[themeMode];b.title=b.ariaLabel='Тема: '+THEME_NAME[themeMode];
 }
