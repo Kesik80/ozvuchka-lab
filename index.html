@@ -1891,26 +1891,39 @@ function elS(){
   return e;
 }
 let PASS=null;try{PASS=localStorage.getItem('ozv:pass');}catch(e){}
-async function api(body,asBlob){
+/* Единый вызов серверных функций /api/<name>: код доступа, повтор после запроса кода, понятные ошибки.
+   opt: quiet — не показывать «нет связи» (фоновая проверка); blob — ответ это файл; label — подпись для консоли;
+        pick — что достать из ответа; nice — своё сообщение об ошибке. */
+async function callApi(name,body,opt){
+  opt=opt||{};
   for(let t=0;t<2;t++){
     let r;
-    try{r=await fetch('/api/eleven',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    if(r.ok)return asBlob?{blob:await r.blob(),key:parseInt(r.headers.get('X-Key'),10)}:r.json();
+    try{r=await fetch('/api/'+name,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
+    catch(e){netFail(opt.quiet);throw new Error('нет связи с сервером');}
+    if(r.ok){
+      if(opt.blob)return {blob:await r.blob(),key:parseInt(r.headers.get('X-Key'),10)};
+      const j=await r.json();
+      if(opt.label){const m=j.model?opt.label+': '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''):null;if(m)console.log(m);}
+      return opt.pick?opt.pick(j):j;
+    }
     let j={};try{j=await r.json();}catch(e){}
-    if(r.status===404&&!j.code)throw new Error('функция /api/eleven не найдена — страница открыта не с Vercel');
+    if(r.status===404&&!j.error&&!j.code)throw new Error('функция /api/'+name+' не найдена — страница открыта не с Vercel');
     if(j.code==='need_pass'&&t===0){
-      const p=(prompt('Код доступа к озвучке (OZV_PASSWORD из Vercel)','')||'').trim();
+      const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();
       if(!p)throw new Error('нужен код доступа');
       PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;
     }
     if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    const c=String(j.code||'');
-    const nice=c==='paid_voice'?j.error:/quota/.test(c)?(j.error||'кончились символы'):/invalid_api_key/.test(c)?'ключ не работает':/voice_not_found/.test(c)?'голоса нет в этом аккаунте — выбери голос заново':null;
-    const err=new Error(nice||j.error||('HTTP '+r.status));err.code=j.code;throw err;
+    if(opt.label&&j.tried&&j.tried.length)console.warn(opt.label+' не вышло: '+j.tried.join(' | '));
+    const err=new Error((opt.nice&&opt.nice(j))||j.error||('HTTP '+r.status));err.code=j.code;throw err;
   }
   throw new Error('неверный код доступа');
 }
+function elNice(j){
+  const c=String(j.code||'');
+  return c==='paid_voice'?j.error:/quota/.test(c)?(j.error||'кончились символы'):/invalid_api_key/.test(c)?'ключ не работает':/voice_not_found/.test(c)?'голоса нет в этом аккаунте — выбери голос заново':null;
+}
+const api=(body,asBlob)=>callApi('eleven',body,{blob:asBlob,nice:elNice});
 const nf=n=>Number(n||0).toLocaleString('ru-RU');
 
 /* --- аккаунты и лимит --- */
@@ -2320,21 +2333,7 @@ $('layPick').addEventListener('click',e=>{const b=e.target.closest('[data-lay]')
 $('trLang').addEventListener('change',e=>{S.trDir=e.target.value;renderLines();glossInfo();save();});
 
 /* ---------- перевод (Gemini) ---------- */
-async function trApi(lines,context,from,to,words){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,context,from,to,words:!!words})});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok){console.log('перевод: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.tr;}
-    if(r.status===404&&!j.error)throw new Error('функция /api/translate не найдена');
-    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
-    if(j.tried)console.warn('перевод не вышел: '+j.tried.join(' | '));
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function trApi(lines,context,from,to,words){return callApi('translate',{lines,context,from,to,words:!!words},{label:'перевод',pick:j=>j.tr});}
 let trBusy=false;
 async function trLines(idx,quiet){
   if(trBusy){toast('Перевод уже идёт…');return;}
@@ -2496,20 +2495,7 @@ function ltTrOn(){return !!S.ltTr;}
 function ltTrPaint(){const b=$('ltTr');b.classList.toggle('on',ltTrOn());b.setAttribute('aria-pressed',ltTrOn());}
 function ltTrTgl(){S.ltTr=!ltTrOn();ltTrPaint();save();if(ltTrOn())ltSchedule(300);else{for(const k in LTT)delete LTT[k];ltPaint();renderLinesKeep();}}
 const ltKey=(t,m)=>m.id+'|'+t.substr(m.o,m.l);
-async function ltApi(text,lang){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/lt',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({text,lang:lang||'de'})});}
-    catch(e){netFail(ltQuiet);throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok)return j;
-    if(r.status===404&&!j.error)throw new Error('функция /api/lt не найдена');
-    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function ltApi(text,lang){return callApi('lt',{text,lang:lang||'de'},{quiet:ltQuiet});}
 let ltBusy=false,ltQuiet=false;
 async function ltRun(idx,f,lang,state){
   const txtOf=i=>(f==='tr'?(S.lines[i].tr||''):S.lines[i].text);
@@ -2675,21 +2661,7 @@ async function sttParts(file){
   }
   return parts;
 }
-async function sttApi(body){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/stt',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok){console.log('распознавание: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.lines||[];}
-    if(r.status===404&&!j.error)throw new Error('функция /api/stt не найдена');
-    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
-    if(j.tried)console.warn('распознавание: '+j.tried.join(' | '));
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function sttApi(body){return callApi('stt',body,{label:'распознавание',pick:j=>j.lines||[]});}
 let sttBusy=false;
 async function stt(){
   if(sttBusy)return;
@@ -2804,19 +2776,7 @@ async function glossBuild(){
   glossBusy=false;btn.disabled=false;btn.textContent='Собрать словарь';glossInfo();verbInfo();
   if(tab==='done')preview();
 }
-async function trApiGloss(items,from,to){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/translate',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({mode:'gloss',items,from,to})});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok)return j.gloss||[];
-    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function trApiGloss(items,from,to){return callApi('translate',{mode:'gloss',items,from,to},{pick:j=>j.gloss||[]});}
 
 
 /* ---------- картинка из книжки ---------- */
@@ -2867,20 +2827,7 @@ async function picDrop(){
   if(k!=='go')return;
   S.pic=null;picSel=-1;picDrawOff();renderPic();save();gcLater();
 }
-async function picApi(body){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/vision',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify(body)});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok){if(j.model)console.log('картинка: '+j.model);return j;}
-    if(r.status===404&&!j.error)throw new Error('функция /api/vision не найдена');
-    if(j.code==='need_pass'&&t===0){const p2=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p2)throw new Error('нужен код доступа');PASS=p2;try{localStorage.setItem('ozv:pass',p2);}catch(e){}continue;}
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function picApi(body){return callApi('vision',body,{label:'картинка'});}
 // кусок фото под запрос: целиком или вырезанная область
 // половина разворота: та же картинка, но крупнее — модель видит подписи
 async function picHalf(side){
@@ -3263,20 +3210,7 @@ function gapInfo(){
   $('gapBtn').hidden=!viewS().gaps;
   $('gapBtn').textContent=have?'Сделать заново':'Сделать пропуски';
 }
-async function gapApi(lines,lang,to){
-  for(let t=0;t<2;t++){
-    let r;
-    try{r=await fetch('/api/task',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},PASS?{'x-ozv-pass':PASS}:{}),body:JSON.stringify({lines,lang,to})});}
-    catch(e){netFail();throw new Error('нет связи с сервером');}
-    let j={};try{j=await r.json();}catch(e){}
-    if(r.ok){console.log('пропуски: '+j.model+(j.tried&&j.tried.length?' · до этого: '+j.tried.join(' | '):''));return j.items||[];}
-    if(r.status===404&&!j.error)throw new Error('функция /api/task не найдена');
-    if(j.code==='need_pass'&&t===0){const p=(prompt('Код доступа (OZV_PASSWORD из Vercel)','')||'').trim();if(!p)throw new Error('нужен код доступа');PASS=p;try{localStorage.setItem('ozv:pass',p);}catch(e){}continue;}
-    if(j.code==='need_pass'){PASS=null;try{localStorage.removeItem('ozv:pass');}catch(e){}}
-    throw new Error(j.error||('HTTP '+r.status));
-  }
-  throw new Error('неверный код доступа');
-}
+function gapApi(lines,lang,to){return callApi('task',{lines,lang,to},{label:'пропуски',pick:j=>j.items||[]});}
 let gapBusy=false;
 async function gapBuild(){
   if(gapBusy)return;
