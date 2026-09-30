@@ -518,6 +518,17 @@ select.inp{appearance:auto}
 <audio id="edAudio" preload="auto"></audio>
 
 <script type="text/plain" id="rtcss">
+body.dict #txt{display:none}
+.dc{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--bar)}
+.dc .dch{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:14px;margin-bottom:10px}
+.dc button{font:inherit;color:inherit;border:1px solid var(--line);background:transparent;border-radius:999px;padding:9px 16px}
+.dc button.big{width:100%;padding:14px;font-size:17px;margin-bottom:10px}
+.dc button.go{background:var(--mark);border-color:var(--mark);color:#1E2A44;font-weight:700}
+.dc textarea{width:100%;box-sizing:border-box;font:inherit;font-size:18px;color:inherit;background:transparent;border:1px solid var(--line);border-radius:12px;padding:10px;resize:vertical}
+.dc .dcres{margin:12px 0 4px;font-size:18px;line-height:1.7}
+.dc .dcres .ok{color:#1F8A5B}.dc .dcres .bad{color:#C8323C;text-decoration:underline wavy}.dc .dcres .ex{opacity:.6;text-decoration:line-through}
+.dc .dcres small{display:block;color:var(--muted);font-size:14px}
+.dc .dcb{display:flex;gap:8px;margin-top:10px}
 :root{--ink:#1E2A44;--paper:#FBFCFE;--line:#DCE2EC;--muted:#66728A;--bar:#FFFFFF;--mark:#FFD84D;box-sizing:border-box}
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none!important}
@@ -1228,7 +1239,8 @@ function ui(){
   $('o-rec').classList.toggle('on',P.rec);
   $('o-rec').hidden=!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
   // урок-картинка: кнопки про текст выключены насовсем
-  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
+  $('o-dc').hidden=!dcAny();$('o-dc').classList.toggle('on',dcOn);
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
   document.body.classList.toggle('rec',P.rec);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
@@ -1311,6 +1323,87 @@ $('o-pq').addEventListener('click',function(){
   if(picQ>=0){picQ=-1;document.body.classList.remove('pquiz');var b=document.getElementById('picq');if(b)b.innerHTML='';ui();return;}
   document.body.classList.add('pquiz');ui();picQuiz();
 });
+/* диктовка: слушаешь строку, печатаешь, страница сверяет слова */
+var dc=null,dcOn=false,dcList=[],dcI=0,dcOk=0,dcAll=0,dcDone=false;
+function dcPlayable(i){var l=L[i];return l.type!=='head'&&wordCount(l.text)>0&&!!((l.clip&&AU[l.clip])||(hasMain&&l.start!=null));}
+function dcAny(){for(var i=0;i<L.length;i++)if(dcPlayable(i))return true;return false;}
+function dcToks(t){return String(t||'').match(/[\p{L}\p{M}\p{N}'\u2019-]+/gu)||[];}
+function dcNorm(w){return w.toLowerCase().replace(/\u2019/g,"'");}
+function dcAlign(E,T){
+  var n=E.length,m=T.length,d=[],i,j;
+  for(i=0;i<=n;i++){d[i]=[];for(j=0;j<=m;j++)d[i][j]=0;}
+  for(i=n-1;i>=0;i--)for(j=m-1;j>=0;j--)d[i][j]=dcNorm(E[i])===dcNorm(T[j])?d[i+1][j+1]+1:Math.max(d[i+1][j],d[i][j+1]);
+  var okE=[],okT=[];for(i=0;i<n;i++)okE[i]=false;for(j=0;j<m;j++)okT[j]=false;
+  i=0;j=0;
+  while(i<n&&j<m){
+    if(dcNorm(E[i])===dcNorm(T[j])){okE[i]=true;okT[j]=true;i++;j++;}
+    else if(d[i+1][j]>=d[i][j+1])i++;else j++;
+  }
+  return {e:okE,t:okT};
+}
+function dcQ(sel){return dc.querySelector(sel);}
+function dcInit(){
+  if(dc)return;
+  dc=document.createElement('div');dc.className='dc';dc.hidden=true;
+  dc.innerHTML='<div class="dch"><span class="dcn"></span><button data-dc="x">закрыть</button></div>'+
+    '<button class="big" data-dc="say">🔊 послушать ещё раз</button>'+
+    '<textarea rows="2" placeholder="Напиши, что услышал" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" lang="de"></textarea>'+
+    '<div class="dcres"></div>'+
+    '<div class="dcb"><button class="go" data-dc="chk">Проверить</button><button class="go" data-dc="nxt" hidden>Дальше →</button></div>';
+  box.parentNode.insertBefore(dc,box);
+  dc.addEventListener('click',function(e){
+    var b=e.target.closest('[data-dc]');if(!b)return;
+    var k=b.dataset.dc;
+    if(k==='x')dcStop();
+    else if(k==='say'&&dcList[dcI]!=null)playLine(dcList[dcI]);
+    else if(k==='chk')dcCheck();
+    else if(k==='nxt'){dcI++;dcShow();}
+    else if(k==='again')dcStart();
+  });
+  dcQ('textarea').addEventListener('keydown',function(e){
+    if(e.key!=='Enter'||e.shiftKey)return;
+    e.preventDefault();
+    if(!dcQ('[data-dc="nxt"]').hidden){dcI++;dcShow();}else dcCheck();
+  });
+}
+function dcStart(){
+  dcInit();
+  dcList=[];for(var i=0;i<L.length;i++)if(dcPlayable(i))dcList.push(i);
+  if(!dcList.length){rmsg('В уроке нет строк с озвучкой');return;}
+  dcOn=true;dcI=0;dcOk=0;dcAll=0;dcDone=false;
+  document.body.classList.add('dict');dc.hidden=false;
+  dcShow();ui();
+}
+function dcStop(){
+  dcOn=false;document.body.classList.remove('dict');if(dc)dc.hidden=true;stopAll();ui();
+}
+function dcShow(){
+  var ta=dcQ('textarea'),res=dcQ('.dcres');
+  dcDone=dcI>=dcList.length;
+  if(dcDone){
+    dcQ('.dcn').textContent='Диктовка закончена';
+    res.innerHTML='Верно слов: <b>'+dcOk+'</b> из '+dcAll+(dcAll?' ('+Math.round(dcOk/dcAll*100)+'%)':'');
+    ta.hidden=true;dcQ('[data-dc="say"]').hidden=true;
+    dcQ('[data-dc="chk"]').hidden=true;
+    var n=dcQ('[data-dc="nxt"]');n.hidden=false;n.textContent='Ещё раз';n.dataset.dc='again';
+    return;
+  }
+  var nx=dcQ('[data-dc="again"]')||dcQ('[data-dc="nxt"]');nx.dataset.dc='nxt';nx.textContent='Дальше →';nx.hidden=true;
+  ta.hidden=false;ta.value='';ta.readOnly=false;res.innerHTML='';
+  dcQ('[data-dc="say"]').hidden=false;dcQ('[data-dc="chk"]').hidden=false;
+  dcQ('.dcn').textContent='Строка '+(dcI+1)+' из '+dcList.length;
+  playLine(dcList[dcI]);ta.focus();
+}
+function dcCheck(){
+  var l=L[dcList[dcI]],E=dcToks(l.text),ta=dcQ('textarea'),T=dcToks(ta.value),a=dcAlign(E,T),good=0,h='',i;
+  for(i=0;i<E.length;i++){if(a.e[i])good++;h+='<span class="'+(a.e[i]?'ok':'bad')+'">'+esc(E[i])+'</span> ';}
+  var extra=[];for(i=0;i<T.length;i++)if(!a.t[i])extra.push('<span class="ex">'+esc(T[i])+'</span>');
+  dcOk+=good;dcAll+=E.length;
+  dcQ('.dcres').innerHTML=h+(extra.length?'<small>лишнее: '+extra.join(' ')+'</small>':'')+(l.tr?'<small>'+esc(l.tr)+'</small>':'');
+  ta.readOnly=true;dcQ('[data-dc="chk"]').hidden=true;
+  var n=dcQ('[data-dc="nxt"]');n.hidden=false;n.textContent=dcI+1>=dcList.length?'Итог':'Дальше →';
+}
+$('o-dc').addEventListener('click',function(){if(dcOn)dcStop();else dcStart();});
 $('o-gap').addEventListener('click',function(){
   P.gaps=!P.gaps;gapOpen=-1;saveP();
   for(var i=0;i<L.length;i++)if(gapOf(i))gapRender(i);
@@ -1334,7 +1427,7 @@ addEventListener('message',function(e){
 });
 picBuild();
 if(PIC&&!L.length){   // урок-картинка: кнопки про текст здесь ни к чему
-  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg'].forEach(function(id){$(id).hidden=true;$(id).dataset.off='1';});
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc'].forEach(function(id){$(id).hidden=true;$(id).dataset.off='1';});
 }
 if(!hasMain&&nextClip(0)<0){
   var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;
@@ -1617,7 +1710,10 @@ $('lines').addEventListener('click',async e=>{
   const card=b.closest('.card');const i=+card.dataset.i;const l=S.lines[i];
   const act=b.dataset.act;
   if(act==='play'){edPlay(i);return;}
-  if(act==='nudge'){const b0=Number(l.start);if(!Number.isFinite(b0))return;l.start=Math.max(0,Math.round((b0+ +b.dataset.d)*100)/100);renderLines();save();edPlay(i);return;}
+  if(act==='nudge'){const b0=Number(l.start);if(!Number.isFinite(b0))return;const nb=Math.max(0,Math.round((b0+ +b.dataset.d)*100)/100),dd=nb-b0;l.start=nb;
+    // тайминги слов отсчитываются от начала строки: сдвинулось начало — сдвигаем и их (у своих клипов отсчёт от клипа, их не трогаем)
+    if(!l.clip&&Array.isArray(l.wt)&&dd)l.wt=l.wt.map(t=>t==null?null:Math.max(0,Math.round((t-dd)*1000)/1000));
+    renderLines();save();edPlay(i);return;}
   if(act==='clipx'){l.clip=null;l.gen=null;l.wt=null;renderLines();save();return;}
   if(act==='retts'){ttsOne(i);return;}
   if(act==='ltfix'){ltFix(i,+b.dataset.n,b.dataset.r,b.dataset.w);return;}
@@ -3280,7 +3376,7 @@ async function buildHTML(embed){
     (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="pic"></div>\n<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-dc">диктовка</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(data)+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
