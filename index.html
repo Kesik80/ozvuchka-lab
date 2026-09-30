@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<script>try{var t=localStorage.getItem("ozv:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <meta name="theme-color" content="#FBFCFE" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10151F" media="(prefers-color-scheme: dark)">
 <title>ОЗВУЧКА</title>
@@ -25,8 +26,10 @@
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none!important}
 @media (prefers-color-scheme:dark){
-  :root{--ink:#E6EBF5;--paper:#10151F;--card:#182030;--line:#2A3448;--muted:#8E9AB2;--accent:#7C9BFF}
+  :root:not([data-theme=light]){--ink:#E6EBF5;--paper:#10151F;--card:#182030;--line:#2A3448;--muted:#8E9AB2;--accent:#7C9BFF}
 }
+:root[data-theme=dark]{--ink:#E6EBF5;--paper:#10151F;--card:#182030;--line:#2A3448;--muted:#8E9AB2;--accent:#7C9BFF;color-scheme:dark}
+:root[data-theme=light]{color-scheme:light}
 html,body{margin:0;height:100%}
 body{background:var(--paper);color:var(--ink);font:16px/1.45 var(--ui);-webkit-tap-highlight-color:transparent}
 button,input,textarea,select{font:inherit;color:inherit}
@@ -247,6 +250,7 @@ select.inp{appearance:auto}
     <div class="brand"><span>ОЗВУЧКА</span></div>
     <input id="title" placeholder="Название урока" aria-label="Название урока">
     <span class="saved" id="saved"></span>
+    <button class="ib" id="themeBtn" aria-label="Тема оформления">◐</button>
     <button class="ib" id="menuBtn" aria-label="Меню">⋮</button>
   </div>
   <p class="offbar" id="offbar" role="status" hidden><span class="dot"></span><span id="offtxt"></span></p>
@@ -3591,6 +3595,28 @@ $('nav').addEventListener('click',e=>{
   if(tab==='pic'){renderPic();if(!QUOTA)loadQuota();}
   window.scrollTo(0,0);
 });
+
+/* --- тема: авто / светлая / тёмная --- */
+const THEMES=['auto','light','dark'],THEME_ICON={auto:'◐',light:'☀',dark:'☾'},THEME_NAME={auto:'Авто (как в системе)',light:'Светлая',dark:'Тёмная'};
+let themeMode='auto';
+try{const t=localStorage.getItem('ozv:theme');if(t==='light'||t==='dark')themeMode=t;}catch(e){}
+function themeApply(){
+  const r=document.documentElement;
+  if(themeMode==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',themeMode);
+  const dark=themeMode==='dark'||(themeMode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{
+    if(m.dataset.orig==null)m.dataset.orig=m.getAttribute('content');
+    m.setAttribute('content',themeMode==='auto'?m.dataset.orig:(dark?'#10151F':'#FBFCFE'));
+  });
+  const b=$('themeBtn');b.textContent=THEME_ICON[themeMode];b.title=b.ariaLabel='Тема: '+THEME_NAME[themeMode];
+}
+$('themeBtn').addEventListener('click',()=>{
+  themeMode=THEMES[(THEMES.indexOf(themeMode)+1)%3];
+  try{if(themeMode==='auto')localStorage.removeItem('ozv:theme');else localStorage.setItem('ozv:theme',themeMode);}catch(e){}
+  themeApply();toast('Тема: '+THEME_NAME[themeMode]);
+});
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(themeMode==='auto')themeApply();});}catch(e){}
+themeApply();
 $('menuBtn').addEventListener('click',async()=>{
   const k=await sheet('Проект',[
     {k:'open',icon:'📂',label:'Открыть файл (проект, страница, .txt, .docx)'},
