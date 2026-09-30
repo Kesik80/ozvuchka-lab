@@ -1,6 +1,6 @@
 // ОЗВУЧКА — прокси к ElevenLabs. Ключи никогда не уходят в браузер.
 // ENV: ELEVENLABS_API_KEYS = "key1,key2,..."   (обязательно)
-//      OZV_PASSWORD       = "..."              (необязательно: код доступа к функции)
+//      OZV_PASSWORD       = "..."              (обязательно: без него функция выключена)
 const BASE = 'https://api.elevenlabs.io';
 
 // запрос с таймаутом: без него зависший провайдер съедает все 60 секунд функции
@@ -126,8 +126,11 @@ module.exports = async function handler(req, res) {
         const start = keyAt(b.key) ? b.key : 0;
         const order = b.pin ? [start] : K.map((_, n) => (start + n) % K.length);
         let last = null;
+        const t0 = Date.now();   // у функции 60 с: на много аккаунтов подряд по 45 с не хватит
         for (const i of order) {
-          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + (ts ? '/with-timestamps' : '') + '?output_format=mp3_44100_64', { method: 'POST', body }, 45000);
+          const left = 56000 - (Date.now() - t0);
+          if (left < 6000) { last = 'Не хватило времени на перебор аккаунтов'; break; }
+          const r = await el(K[i], '/v1/text-to-speech/' + b.voice + (ts ? '/with-timestamps' : '') + '?output_format=mp3_44100_64', { method: 'POST', body }, Math.min(45000, left));
           if (r.ok && ts) {
             const j = await r.json();
             const al = j.alignment || j.normalized_alignment || {};

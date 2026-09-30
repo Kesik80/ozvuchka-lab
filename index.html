@@ -321,7 +321,7 @@ select.inp{appearance:auto}
       <button class="foldbtn" id="accFold" data-go="accFoldTgl" hidden></button>
       <div id="accounts"></div>
     </div>
-    <div class="box" id="elBox">
+    <div class="box">
       <div class="row" style="justify-content:space-between;flex-wrap:nowrap">
         <h2 style="margin:0">Голоса</h2>
         <button class="ib" data-go="reloadVoices" aria-label="Обновить список голосов">↻</button>
@@ -1960,12 +1960,13 @@ function foldPaint(){
   const b=$('accFold');b.hidden=!many;
   $('accounts').classList.toggle('folded',many&&FOLD.acc);
   if(many)b.textContent=(FOLD.acc?'Показать аккаунты':'Скрыть аккаунты')+' ('+accs.length+(accs.some(a=>!a.ok)?', есть проблемные':'')+') '+(FOLD.acc?'▾':'▴');
-  $('elModels').classList.toggle('folded',FOLD.mod);
+  // у старого проекта модель может быть неизвестной: тогда ни одна карточка не «выбрана» и прятать нечего
+  $('elModels').classList.toggle('folded',FOLD.mod&&!!$('elModels').querySelector('button.on'));
 }
 function accFoldTgl(){FOLD.acc=!FOLD.acc;foldSave('acc');foldPaint();}
 $('elModels').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
-  if(FOLD.mod){e.stopPropagation();FOLD.mod=false;foldSave('mod');foldPaint();return;}
+  if($('elModels').classList.contains('folded')){e.stopPropagation();FOLD.mod=false;foldSave('mod');foldPaint();return;}
   setTimeout(()=>{FOLD.mod=true;foldSave('mod');foldPaint();},0);
 },true);
 $('accounts').addEventListener('click',e=>{
@@ -2820,7 +2821,6 @@ async function trApiGloss(items,from,to){
 
 /* ---------- картинка из книжки ---------- */
 const PIC_MAX=1600, PIC_ASK=1024;          // храним до 1600 px, Gemini показываем 1024 px
-function picS(){if(!S.pic)S.pic=null;return S.pic;}
 function picAreas(){return (S.pic&&Array.isArray(S.pic.areas))?S.pic.areas:[];}
 let picSel=-1,picDraw=false,picBusy=false;
 
@@ -3611,7 +3611,7 @@ function themeApply(){
     if(m.dataset.orig==null)m.dataset.orig=m.getAttribute('content');
     m.setAttribute('content',themeMode==='auto'?m.dataset.orig:(dark?'#161A22':'#FBFCFE'));
   });
-  const b=$('themeBtn');b.textContent=THEME_ICON[themeMode];b.title=b.ariaLabel='Тема: '+THEME_NAME[themeMode];
+  const b=$('themeBtn');b.textContent=THEME_ICON[themeMode];b.title='Тема: '+THEME_NAME[themeMode];b.setAttribute('aria-label',b.title);
 }
 $('themeBtn').addEventListener('click',()=>{
   themeMode=THEMES[(THEMES.indexOf(themeMode)+1)%3];

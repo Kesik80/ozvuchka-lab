@@ -58,8 +58,10 @@ async function ask(key, model, mime, audio, prompt) {
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Только POST' });
-  const pass = process.env.OZV_PASSWORD;
-  if (pass && req.headers['x-ozv-pass'] !== pass) return res.status(401).json({ error: 'Нужен код доступа', code: 'need_pass' });
+  // код доступа обязателен: без него функция — открытый прокси к платным ключам
+  const pass = String(process.env.OZV_PASSWORD || '').trim();
+  if (!pass) return res.status(503).json({ error: 'В Vercel не задан OZV_PASSWORD — функция выключена', code: 'no_pass' });
+  if (String(req.headers['x-ozv-pass'] || '').trim() !== pass) return res.status(401).json({ error: 'Нужен код доступа', code: 'need_pass' });
   const K = keys();
   if (!K.length) return res.status(500).json({ error: 'В Vercel не задан GEMINI_API_KEY', code: 'no_keys' });
 
