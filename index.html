@@ -518,6 +518,7 @@ select.inp{appearance:auto}
 <audio id="edAudio" preload="auto"></audio>
 
 <script type="text/plain" id="rtcss">
+body.blind .ln:not(.peek) .t w{color:transparent!important;background-color:color-mix(in srgb,var(--ink) 14%,transparent);border-radius:5px;pointer-events:none;-webkit-user-select:none;user-select:none}
 body.dict #txt{display:none}
 .dc{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--bar)}
 .dc .dch{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:14px;margin-bottom:10px}
@@ -676,7 +677,7 @@ var L=Array.isArray(D.lines)?D.lines:[], SP={};
 var V=D.view||{};
 var KEY='ozv:'+(D.key||'x');
 var DEF=(V.tr===false?0:1)+''+(V.marker===false?0:1);   // как урок открывается по замыслу автора
-var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false,rec:false,gaps:false,plab:false};
+var P={speed:1,loop:false,apause:false,hide:false,tr:V.tr!==false,mk:V.marker!==false,words:false,bg:false,rec:false,gaps:false,plab:false,blind:false};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');
   if(sv){for(var k in P)if(k in sv)P[k]=sv[k];
     if(sv._d!==DEF){P.tr=V.tr!==false;P.mk=V.marker!==false;}}   // автор поменял умолчания — перевод и маркер берём заново
@@ -684,6 +685,9 @@ try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');
 if([0.5,0.75,1,1.25].indexOf(P.speed)<0)P.speed=1;
 function saveP(){try{var o={_d:DEF};for(var k in P)o[k]=P[k];localStorage.setItem(KEY,JSON.stringify(o));}catch(e){}}
 var main=new Audio(), clip=new Audio();
+// при замедлении и ускорении высота голоса не меняется (в новых браузерах так по умолчанию, здесь — явно и для старых)
+function keepPitch(a){try{a.preservesPitch=true;a.mozPreservesPitch=true;a.webkitPreservesPitch=true;}catch(e){}}
+keepPitch(main);keepPitch(clip);
 main.preload='auto'; clip.preload='auto';
 var hasMain=!!(D.main&&AU[D.main]);
 var srcCache={};
@@ -729,7 +733,7 @@ function wrapWords(t,idx,kar,gapK){
 }
 /* ---------- картинка из книжки ---------- */
 var PIC=(D.pic&&D.pic.img&&AU[D.pic.img]&&Array.isArray(D.pic.areas)&&D.pic.areas.length)?D.pic:null;
-var picAud=new Audio(),picSel=-1,picQ=-1,picDone={},picEls=[];
+var picAud=new Audio();keepPitch(picAud);var picSel=-1,picQ=-1,picDone={},picEls=[];
 function picPoly(a){return a.poly.map(function(p){return (p[0]*1000).toFixed(1)+','+(p[1]*1000).toFixed(1);}).join(' ');}
 function picMid(a){
   var x=0,y=0;a.poly.forEach(function(p){x+=p[0];y+=p[1];});
@@ -744,7 +748,7 @@ function picBuild(){
     PIC.areas.map(function(a,i){return '<polygon data-i="'+i+'" points="'+picPoly(a)+'"></polygon>';}).join('')+
     '</svg>'+
     PIC.areas.map(function(a,i){var m=picMid(a);
-      return '<span class="piclab" data-l="'+i+'" style="left:'+(m[0]*100).toFixed(2)+'%;top:'+(m[1]*100).toFixed(2)+'%">'+esc(a.word)+'</span>';}).join('')+
+      return '<span class="piclab" lang="de" data-l="'+i+'" style="left:'+(m[0]*100).toFixed(2)+'%;top:'+(m[1]*100).toFixed(2)+'%">'+esc(a.word)+'</span>';}).join('')+
     '</div>'+
     '<div class="picnow" id="picnow"></div>'+
     '<div class="picbar q" id="picq"></div>';
@@ -770,7 +774,7 @@ function picPlay(i){
 function picSay(i){
   var a=PIC.areas[i];if(!a)return;
   var n=document.getElementById('picnow');
-  if(n)n.innerHTML='<b>'+esc(a.word)+'</b>'+(a.tr&&P.tr?'<i>'+esc(a.tr)+'</i>':'');
+  if(n)n.innerHTML='<b lang="de">'+esc(a.word)+'</b>'+(a.tr&&P.tr?'<i'+lgAttr(a.tr)+'>'+esc(a.tr)+'</i>':'');
 }
 function picTap(i){
   if(picQ>=0)return picAnswer(i);
@@ -812,6 +816,7 @@ function picBar(msg){
 var box=document.getElementById('txt'), els=[];
 document.body.classList.add('lay-'+(/^[a-z]+$/.test(V.layout||'')?V.layout:'plain'));
 var side={};(D.speakers||[]).forEach(function(s,i){side[s.id]=i%2===1;});
+function lgAttr(t){t=String(t||'');return /[іїєґІЇЄҐ]/.test(t)?' lang="uk"':/[\u0400-\u04FF]/.test(t)?' lang="ru"':'';}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 var curHeadColor=null;
 L.forEach(function(l,i){
@@ -830,7 +835,7 @@ L.forEach(function(l,i){
     if(!playable)el.classList.add('silent');
     var ctl=(l.clip&&AU[l.clip]?'<span class="ic">🔊</span>':'')+(l.tr?'<button class="eye" aria-label="Показать перевод">👁</button>':'')+
       '<button class="mic" aria-label="Записать себя">🎙</button>';
-    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t" lang="de">'+wrapWords(l.text,i,karOk(l))+'</span>'+(l.tr?'<span class="tr">'+esc(l.tr)+'</span>':'')+'<span class="rw"></span><span class="gw"></span>';
+    el.innerHTML=(ctl?'<span class="ctl">'+ctl+'</span>':'')+(sp?'<span class="who">'+esc(sp.name)+'</span>':'')+'<span class="t" lang="de">'+wrapWords(l.text,i,karOk(l))+'</span>'+(l.tr?'<span class="tr"'+lgAttr(l.tr)+'>'+esc(l.tr)+'</span>':'')+'<span class="rw"></span><span class="gw"></span>';
     if(sp&&side[l.spk])el.classList.add('me');
     if(karOk(l))el.classList.add('kar');else if(l.wt)l.wt=null;
     if(l.tr&&V.tr!==false){var eb=el.querySelector('.eye');if(eb)eb.classList.add('on');}
@@ -883,6 +888,7 @@ function karSet(i,lt){
 }
 function setAct(i,p,lt){
   if(cur!==i){
+    if(P.blind&&cur>=0&&els[cur])els[cur].classList.add('peek');   // послушал строку — показываем, что там было
     if(i!==pausedAt)pausedAt=-1;
     if(cur>=0&&els[cur])els[cur].classList.remove('act');
     karReset();
@@ -1128,7 +1134,7 @@ box.addEventListener('click',function(e){
 },true);
 
 /* ---------- «повтори за диктором» ---------- */
-var REC={},mine=new Audio(),stream=null,mr=null,recLine=-1,cmpFor=-1,msgT=0;
+var REC={},mine=new Audio();keepPitch(mine);var stream=null,mr=null,recLine=-1,cmpFor=-1,msgT=0;
 function rmsg(t){
   clearTimeout(msgT);
   var old=document.querySelector('.rmsg');if(old)old.remove();
@@ -1164,6 +1170,7 @@ function playRec(i){
 }
 function playBoth(i){cmpFor=i;stopMine();playLine(i);}
 function lineFinished(i){
+  if(P.blind&&i>=0&&els[i])els[i].classList.add('peek');
   if(cmpFor===i){cmpFor=-1;setTimeout(function(){playRec(i);},250);}
 }
 async function toggleRec(i){
@@ -1240,7 +1247,8 @@ function ui(){
   $('o-rec').hidden=!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
   // урок-картинка: кнопки про текст выключены насовсем
   $('o-dc').hidden=!dcAny();$('o-dc').classList.toggle('on',dcOn);
-  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
+  $('o-bl').hidden=!dcAny();$('o-bl').classList.toggle('on',!!P.blind);document.body.classList.toggle('blind',!!P.blind&&dcAny());
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc','o-bl'].forEach(function(id){if($(id).dataset.off)$(id).hidden=true;});
   document.body.classList.toggle('rec',P.rec);
   document.body.classList.toggle('hide',P.hide);
   document.body.classList.toggle('notr',!P.tr);
@@ -1403,6 +1411,11 @@ function dcCheck(){
   ta.readOnly=true;dcQ('[data-dc="chk"]').hidden=true;
   var n=dcQ('[data-dc="nxt"]');n.hidden=false;n.textContent=dcI+1>=dcList.length?'Итог':'Дальше →';
 }
+$('o-bl').addEventListener('click',function(){
+  P.blind=!P.blind;saveP();
+  els.forEach(function(e){if(e&&e.classList)e.classList.remove('peek');});   // каждый раз начинаем с закрытых строк
+  ui();
+});
 $('o-dc').addEventListener('click',function(){if(dcOn)dcStop();else dcStart();});
 $('o-gap').addEventListener('click',function(){
   P.gaps=!P.gaps;gapOpen=-1;saveP();
@@ -1427,7 +1440,7 @@ addEventListener('message',function(e){
 });
 picBuild();
 if(PIC&&!L.length){   // урок-картинка: кнопки про текст здесь ни к чему
-  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc'].forEach(function(id){$(id).hidden=true;$(id).dataset.off='1';});
+  ['o-hd','o-rec','o-lp','o-ap','o-mk','o-bg','o-dc','o-bl'].forEach(function(id){$(id).hidden=true;$(id).dataset.off='1';});
 }
 if(!hasMain&&nextClip(0)<0){
   var rowEl=document.querySelector('.pl .r');if(rowEl)rowEl.hidden=true;
@@ -3357,6 +3370,7 @@ function idsOf(d){
   if(d.pic){if(d.pic.img)s.add(d.pic.img);(d.pic.areas||[]).forEach(a=>{if(a.clip)s.add(a.clip);});}
   return s;
 }
+const lgAttr=t=>/[іїєґІЇЄҐ]/.test(t)?' lang="uk"':/[\u0400-\u04FF]/.test(t)?' lang="ru"':' lang="de"';   // заголовок урока: по письму (кириллица — ru/uk, иначе немецкий)
 async function buildHTML(embed){
   const data=projectData();
   const au={};let kept=0;
@@ -3373,10 +3387,10 @@ async function buildHTML(embed){
   return '<!DOCTYPE html>\n<html lang="ru">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<title>'+t+'</title>\n'+
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet" media="print" onload="this.media=\'all\'"><noscript><link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet"></noscript>\n'+
     '<style>'+$('rtcss').textContent+'</style>\n</head>\n<body>\n<div class="wrap">\n'+
-    (S.title?'<h1>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub">'+esc(S.subtitle)+'</p>\n':'')+
+    (S.title?'<h1'+lgAttr(S.title)+'>'+t+'</h1>\n':'')+(S.subtitle?'<p class="sub"'+lgAttr(S.subtitle)+'>'+esc(S.subtitle)+'</p>\n':'')+
     '<div id="pic"></div>\n<div id="txt"></div>\n</div>\n'+
     '<div class="pl" id="pl"><div class="in"><div class="r"><button class="play" id="pp" aria-label="Играть">▶</button><input type="range" id="sk" min="0" max="1000" value="0" aria-label="Позиция"><span class="time" id="tm">0:00</span></div>'+
-    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-dc">диктовка</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
+    '<div class="opts"><button id="o-sp" aria-label="Скорость">1×</button><button id="o-lp">↻ повтор строки</button><button id="o-ap">⏸ пауза после строки</button><button id="o-hd">скрыть текст</button><button id="o-tr">перевод</button><button id="o-mk">маркер</button><button id="o-bg">фон строки</button><button id="o-rec">запись</button><button id="o-gap">пропуски</button><button id="o-dc">диктовка</button><button id="o-bl">слепой</button><button id="o-pl">подписи</button><button id="o-pq">найди предмет</button><button id="o-wd">слова</button></div></div></div>\n'+
     '<script type="application/json" id="d">'+j(data)+SC+'\n'+
     '<script type="application/json" id="au">'+j(au)+SC+'\n'+
     '<script>'+$('rtjs').textContent+SC+'\n</body>\n</html>\n';
